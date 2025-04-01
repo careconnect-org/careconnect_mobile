@@ -1,3 +1,4 @@
+import 'package:careconnect/login-screen.dart';
 import 'package:flutter/material.dart';
 import 'createaccount_screen.dart'; 
 
@@ -100,7 +101,7 @@ class LetsYouInScreen extends StatelessWidget {
               // Sign in with password button
               ElevatedButton(
                 onPressed: () {
-                  // Navigate to sign in with password screen
+                  LoginScreen();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
