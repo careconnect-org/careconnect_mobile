@@ -14,16 +14,16 @@ class _WalkthroughScreensState extends State<WalkthroughScreens> {
   final List<Map<String, dynamic>> _walkthroughPages = [
     {
       'image': 'assets/images/MariaBackblur.png',
-      'title': 'Thousands of doctors & experts to help your health!',
-      'description': 'Connect with top medical professionals from the comfort of your home.',
+      'title': 'Your health. Our priority. Thousands of doctors ready to help.!',
+      'description': 'Get instant access to trusted doctors and personalized health advice — anytime, anywhere.',
     },
     {
-      'image': 'assets/images/walkthrough2.png',
+      'image': 'assets/images/walk2.png',
       'title': 'Quick and Easy Consultations',
       'description': 'Book appointments and get medical advice with just a few taps.',
     },
     {
-      'image': 'assets/images/walkthrough3.png',
+      'image': 'assets/images/walk3.png',
       'title': 'Secure and Confidential',
       'description': 'Your health information is always private and protected.',
     },

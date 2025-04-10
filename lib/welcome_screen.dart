@@ -12,7 +12,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 1), () {
+    Future.delayed(const Duration(seconds: 3), () {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const WalkthroughScreens()),
       );
@@ -73,7 +73,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Text(
-                'The best online doctor appointment & consultation app of the century for your health and medical needs!',
+                'The best online Doctor Appointment & Consultation App of the century for your health and medical needs!',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[700],
