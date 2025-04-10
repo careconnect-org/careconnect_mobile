@@ -120,7 +120,7 @@ class _CreateNewAccountScreenState extends State<CreateNewAccountScreen> {
                 // Title
                 const Center(
                   child: Text(
-                    'Create New Account',
+                    'Create Account',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -128,7 +128,7 @@ class _CreateNewAccountScreenState extends State<CreateNewAccountScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 30),
+                const SizedBox(height: 60),
 
                 // Form
                 Form(
@@ -237,7 +237,7 @@ class _CreateNewAccountScreenState extends State<CreateNewAccountScreen> {
                               onPressed: _signUp,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue,
-                                minimumSize: const Size(double.infinity, 50),
+                                minimumSize: const Size(250, 50),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(25),
                                 ),
