@@ -38,9 +38,9 @@ class LetsYouInScreen extends StatelessWidget {
               
               // Title
               const Text(
-                'Let\'s you in',
+                'Let\'s Get Started!',
                 style: TextStyle(
-                  fontSize: 32,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -101,11 +101,15 @@ class LetsYouInScreen extends StatelessWidget {
               // Sign in with password button
               ElevatedButton(
                 onPressed: () {
-                  LoginScreen();
+                   Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                        );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
-                  minimumSize: const Size(double.infinity, 50),
+                  minimumSize: const Size(250, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),

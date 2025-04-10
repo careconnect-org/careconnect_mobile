@@ -46,7 +46,7 @@ class WalkthroughScreen2 extends StatelessWidget {
                   
                   // Main Text
                   const Text(
-                    'Thousands of doctors & experts to help your health!',
+                    'Your health. Our priority. Thousands of doctors ready to help.!',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 22,

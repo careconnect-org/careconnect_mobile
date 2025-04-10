@@ -12,7 +12,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 1), () {
+    Future.delayed(const Duration(seconds: 3), () {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const WalkthroughScreens()),
       );
@@ -42,13 +42,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     left: 80, right: null, top: 80, size: 80),
                   _buildCircularProfile('assets/images/Doctor4.png', 
                     left: null, right: 80, top: 80, size: 80),
-                  _buildCircularProfile('assets/images/Doctor5.png', 
+                  _buildCircularProfile('assets/images/Doctor1.png', 
                     left: null, right: 150, top: 130, size: 90),
-                  _buildCircularProfile('assets/images/Doctor1.png', 
+                  _buildCircularProfile('assets/images/Doctor2.png', 
                     left: 150, right: null, top: 130, size: 90),
-                  _buildCircularProfile('assets/images/Doctor1.png', 
+                  _buildCircularProfile('assets/images/Doctor3.png', 
                     left: null, right: 50, bottom: 50, size: 60),
-                  _buildCircularProfile('assets/images/Doctor1.png', 
+                  _buildCircularProfile('assets/images/Doctor4.png', 
                     left: 50, right: null, bottom: 50, size: 60),
                   _buildCircularProfile('assets/images/Doctor1.png', 
                     left: null, right: null, bottom: 0, size: 70),
@@ -73,7 +73,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Text(
-                'The best online doctor appointment & consultation app of the century for your health and medical needs!',
+                'The best online Doctor Appointment & Consultation App of the century for your health and medical needs!',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[700],
