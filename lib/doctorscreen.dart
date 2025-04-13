@@ -2,30 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:careconnect/chatdetailscreen.dart';
 
 class DoctorsPage extends StatelessWidget {
-  const DoctorsPage({super.key});
+   DoctorsPage({super.key});
 
-  final List<Map<String, dynamic>> doctors = const [
+  static const List<Map<String, dynamic>> doctors = const [
     {
       'name': 'Dr. Aidan Allende',
       'specialty': 'Cardiologist',
-      'available': true,
       'rating': 4.8,
+        'available': true,
       'workingHours': 'Mon-Fri, 9:00 AM - 5:00 PM',
       'image': 'https://i.pravatar.cc/150?img=32'
     },
     {
       'name': 'Dr. Iker Holl',
       'specialty': 'Dermatologist',
-      'available': false,
       'rating': 4.5,
+        'available': true,
       'workingHours': 'Tue-Sat, 10:00 AM - 6:00 PM',
       'image': 'https://i.pravatar.cc/150?img=12'
     },
     {
       'name': 'Dr. Jada Srnsky',
       'specialty': 'Psychiatrist',
-      'available': true,
       'rating': 4.9,
+        'available': false,
       'workingHours': 'Mon-Wed, 12:00 PM - 8:00 PM',
       'image': 'https://i.pravatar.cc/150?img=5'
     },
@@ -34,11 +34,18 @@ class DoctorsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Our Doctors"),
-        centerTitle: true,
-        backgroundColor:  Colors.grey,
+       appBar: AppBar(
+      title: const Text(
+        "Our Doctors",
+        style: TextStyle(
+          color: Colors.white,  // Set the text color
+          fontSize: 18,         // Set the font size
+          fontWeight: FontWeight.bold,  // Set the font weight
+        ),
       ),
+      centerTitle: true,
+      backgroundColor: Colors.grey,  // AppBar background color
+    ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: doctors.length,

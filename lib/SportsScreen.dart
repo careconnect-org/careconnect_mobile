@@ -5,7 +5,7 @@ class SportsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Doctors"),
+        title: Text("Sports"),
       ),
       body: Center(
         child: Text(

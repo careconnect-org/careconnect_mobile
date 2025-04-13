@@ -5,7 +5,7 @@ class FoodsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Doctors"),
+        title: Text("Foods"),
       ),
       body: Center(
         child: Text(

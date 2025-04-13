@@ -5,7 +5,7 @@ class HealthScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Doctors"),
+        title: Text("Health"),
       ),
       body: Center(
         child: Text(
