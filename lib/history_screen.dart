@@ -11,64 +11,65 @@ class MessageHistoryScreen extends StatefulWidget {
 class _MessageHistoryScreenState extends State<MessageHistoryScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   
-  final List<Doctor> doctors = [
-    Doctor(
-      name: "Dr. Drake Boeson",
-      image: "assets/images/doctor1.jpg",
-      lastMessage: "My pleasure. All the best for ...",
-      date: "Today",
-      time: "10:00 AM",
-    ),
-    Doctor(
-      name: "Dr. Aidan Allende",
-      image: "assets/images/doctor2.jpg",
-      lastMessage: "Your solution is great! 🔥🔥",
-      date: "Yesterday",
-      time: "18:00 PM",
-    ),
-    Doctor(
-      name: "Dr. Salvatore Heredia",
-      image: "assets/images/doctor3.jpg",
-      lastMessage: "Thanks for the help doctor 🙏",
-      date: "20/12/2022",
-      time: "10:30 AM",
-    ),
-    Doctor(
-      name: "Dr. Delaney Mangino",
-      image: "assets/images/doctor4.jpg",
-      lastMessage: "I have recovered, thank you v...",
-      date: "14/12/2022",
-      time: "17:00 PM",
-    ),
-    Doctor(
-      name: "Dr. Beckett Calger",
-      image: "assets/images/doctor5.jpg",
-      lastMessage: "I went there yesterday 😊",
-      date: "26/11/2022",
-      time: "09:30 AM",
-    ),
-    Doctor(
-      name: "Dr. Bernard Bliss",
-      image: "assets/images/doctor6.jpg",
-      lastMessage: "IDK what else is there to do ...",
-      date: "09/11/2022",
-      time: "10:00 AM",
-    ),
-    Doctor(
-      name: "Dr. Jada Srnsky",
-      image: "assets/images/doctor7.jpg",
-      lastMessage: "I advise you to take a break 🏖️",
-      date: "18/10/2022",
-      time: "15:30 PM",
-    ),
-    Doctor(
-      name: "Dr. Randy Wigham",
-      image: "assets/images/doctor8.jpg",
-      lastMessage: "Yeah! You're right. 🔥🔥",
-      date: "07/10/2022",
-      time: "16:00 PM",
-    ),
-  ];
+ final List<Map<String, dynamic>> doctors = [
+  {
+    'name': "Dr. Drake Boeson",
+    'image': "assets/images/doctor1.jpg",
+    'lastMessage': "My pleasure. All the best for ...",
+    'date': "Today",
+    'time': "10:00 AM",
+  },
+  {
+    'name': "Dr. Aidan Allende",
+    'image': "assets/images/doctor2.jpg",
+    'lastMessage': "Your solution is great! 🔥🔥",
+    'date': "Yesterday",
+    'time': "18:00 PM",
+  },
+  {
+    'name': "Dr. Salvatore Heredia",
+    'image': "assets/images/doctor3.jpg",
+    'lastMessage': "Thanks for the help doctor 🙏",
+    'date': "20/12/2022",
+    'time': "10:30 AM",
+  },
+  {
+    'name': "Dr. Delaney Mangino",
+    'image': "assets/images/doctor4.jpg",
+    'lastMessage': "I have recovered, thank you v...",
+    'date': "14/12/2022",
+    'time': "17:00 PM",
+  },
+  {
+    'name': "Dr. Beckett Calger",
+    'image': "assets/images/doctor5.jpg",
+    'lastMessage': "I went there yesterday 😊",
+    'date': "26/11/2022",
+    'time': "09:30 AM",
+  },
+  {
+    'name': "Dr. Bernard Bliss",
+    'image': "assets/images/doctor6.jpg",
+    'lastMessage': "IDK what else is there to do ...",
+    'date': "09/11/2022",
+    'time': "10:00 AM",
+  },
+  {
+    'name': "Dr. Jada Srnsky",
+    'image': "assets/images/doctor7.jpg",
+    'lastMessage': "I advise you to take a break 🏖️",
+    'date': "18/10/2022",
+    'time': "15:30 PM",
+  },
+  {
+    'name': "Dr. Randy Wigham",
+    'image': "assets/images/doctor8.jpg",
+    'lastMessage': "Yeah! You're right. 🔥🔥",
+    'date': "07/10/2022",
+    'time': "16:00 PM",
+  },
+];
+
 
   @override
   void initState() {
@@ -157,7 +158,7 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen> with Single
               children: [
                 CircleAvatar(
                   radius: 25,
-                  backgroundImage: AssetImage(doctor.image),
+                  backgroundImage: AssetImage(doctor['image']),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -165,7 +166,7 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen> with Single
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        doctor.name,
+                        doctor['name'],
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -173,7 +174,7 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen> with Single
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        doctor.lastMessage,
+                        doctor['lastMessage'],
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 14,
@@ -188,7 +189,7 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen> with Single
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      doctor.date,
+                      doctor['date'],
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 12,
@@ -196,7 +197,7 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen> with Single
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      doctor.time,
+                      doctor['time'],
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 12,
@@ -222,18 +223,3 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen> with Single
   }
 }
 
-class Doctor {
-  final String name;
-  final String image;
-  final String lastMessage;
-  final String date;
-  final String time;
-
-  Doctor({
-    required this.name,
-    required this.image,
-    required this.lastMessage,
-    required this.date,
-    required this.time,
-  });
-}

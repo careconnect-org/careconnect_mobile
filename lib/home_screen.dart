@@ -4,6 +4,10 @@ import 'history_screen.dart';
 import 'favorite_doctor_screen.dart';
 import 'notification_screen.dart';
 import 'profile_screen.dart'; 
+import 'doctorscreen.dart'; 
+import 'FoodsScreen.dart';
+import 'HealthScreen.dart';
+import 'SportsScreen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -35,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
         leading: Padding(
           padding: const EdgeInsets.all(8.0),
           child: CircleAvatar(
-            backgroundImage: NetworkImage('https://example.com/profile.jpg'),
+            backgroundImage: NetworkImage('assets/images/avatar.png'),
           ),
         ),
         title: Column(
@@ -155,7 +159,14 @@ class HomeScreenContent extends StatelessWidget {
                       ),
                       SizedBox(height: 12),
                       ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () {
+                            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HealthScreen(),
+              ),
+            );
+                        },
                         child: Text('Check Now'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
@@ -171,7 +182,7 @@ class HomeScreenContent extends StatelessWidget {
                   child: Opacity(
                     opacity: 0.3, // Adjust transparency level
                     child: Image.asset(
-                      'assets/image/avatar.png',
+                      'assets/images/avatar.png',
                       width: 120,
                       height: 200,
                       fit: BoxFit.contain,
@@ -195,7 +206,14 @@ class HomeScreenContent extends StatelessWidget {
                   ),
                 ),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                                   Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DoctorsPage(),
+              ),
+            );
+                  },
                   child: Text('See All'),
                 ),
               ],
@@ -212,7 +230,7 @@ class HomeScreenContent extends StatelessWidget {
                   _buildSpecialtyIcon(Icons.psychology, 'Neurolo..'),
                   _buildSpecialtyIcon(Icons.child_friendly, 'Pediatric'),
                   _buildSpecialtyIcon(Icons.radio, 'Radiolo..'),
-                  _buildSpecialtyIcon(Icons.more_horiz, 'More'),
+                 _buildDoctorFilter('All', isSelected: true),
                 ],
               ),
             ),
@@ -223,14 +241,16 @@ class HomeScreenContent extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Top Doctors',
+                  'Categories',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    
+                  },
                   child: Text('See All'),
                 ),
               ],
