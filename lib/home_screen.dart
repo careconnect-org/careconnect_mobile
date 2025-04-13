@@ -4,10 +4,9 @@ import 'history_screen.dart';
 import 'favorite_doctor_screen.dart';
 import 'notification_screen.dart';
 import 'profile_screen.dart'; 
-import 'doctorscreen.dart'; 
-import 'FoodsScreen.dart';
+import 'doctorscreen.dart';
 import 'HealthScreen.dart';
-import 'SportsScreen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -249,7 +248,7 @@ class HomeScreenContent extends StatelessWidget {
                 ),
                 TextButton(
                   onPressed: () {
-                    
+
                   },
                   child: Text('See All'),
                 ),
