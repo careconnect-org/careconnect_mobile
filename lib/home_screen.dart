@@ -1,9 +1,14 @@
+import 'package:careconnect/FoodsScreen.dart';
+import 'package:careconnect/SportsScreen.dart';
 import 'package:flutter/material.dart';
 import 'appointment_screen.dart'; 
 import 'history_screen.dart'; 
 import 'favorite_doctor_screen.dart';
 import 'notification_screen.dart';
 import 'profile_screen.dart'; 
+import 'package:careconnect/doctorscreen.dart';
+import 'HealthScreen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -35,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
         leading: Padding(
           padding: const EdgeInsets.all(8.0),
           child: CircleAvatar(
-            backgroundImage: NetworkImage('https://example.com/profile.jpg'),
+            backgroundImage: NetworkImage('assets/images/avatar.png'),
           ),
         ),
         title: Column(
@@ -155,7 +160,14 @@ class HomeScreenContent extends StatelessWidget {
                       ),
                       SizedBox(height: 12),
                       ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () {
+                            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HealthScreen(),
+              ),
+            );
+                        },
                         child: Text('Check Now'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
@@ -171,7 +183,7 @@ class HomeScreenContent extends StatelessWidget {
                   child: Opacity(
                     opacity: 0.3, // Adjust transparency level
                     child: Image.asset(
-                      'assets/image/avatar.png',
+                      'assets/images/avatar.png',
                       width: 120,
                       height: 200,
                       fit: BoxFit.contain,
@@ -184,69 +196,88 @@ class HomeScreenContent extends StatelessWidget {
             SizedBox(height: 16),
 
             // Doctor Specialty Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Doctor Specialty',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: Text('See All'),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildSpecialtyIcon(Icons.medical_services, 'General'),
-                  _buildSpecialtyIcon(Icons.airline_seat_flat, 'Dentist'),
-                  _buildSpecialtyIcon(Icons.remove_red_eye, 'Ophthal..'),
-                  _buildSpecialtyIcon(Icons.restaurant, 'Nutrition..'),
-                  _buildSpecialtyIcon(Icons.psychology, 'Neurolo..'),
-                  _buildSpecialtyIcon(Icons.child_friendly, 'Pediatric'),
-                  _buildSpecialtyIcon(Icons.radio, 'Radiolo..'),
-                  _buildSpecialtyIcon(Icons.more_horiz, 'More'),
-                ],
-              ),
-            ),
-            SizedBox(height: 16),
+           Row(
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    Text(
+      'Doctor Specialty',
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    TextButton(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DoctorsPage(),
+          ),
+        );
+      },
+      child: Text('See All'),
+    ),
+  ],
+),
+SizedBox(height: 10),
+LayoutBuilder(
+  builder: (context, constraints) {
+    int crossAxisCount = (constraints.maxWidth ~/ 80).clamp(2, 4); // responsive
+    return GridView.count(
+      crossAxisCount: crossAxisCount,
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: 1,
+      children: [
+        _buildSpecialtyIcon(Icons.medical_services, 'General'),
+        _buildSpecialtyIcon(Icons.airline_seat_flat, 'Cardiolo..'),
+        _buildSpecialtyIcon(Icons.remove_red_eye, 'Ophthal..'),
+        _buildSpecialtyIcon(Icons.restaurant, 'Nutritio..'),
+        _buildSpecialtyIcon(Icons.psychology, 'Neurolo..'),
+        _buildSpecialtyIcon(Icons.child_friendly, 'Pediatr..'),
+        _buildSpecialtyIcon(Icons.radio, 'Radiolo..'),
+      ],
+    );
+  },
+),
+
+// Add spacing before categories
+SizedBox(height: 24),
 
             // Top Doctors Section
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Top Doctors',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: Text('See All'),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildDoctorFilter('All', isSelected: true),
-                  _buildDoctorFilter('General'),
-                  _buildDoctorFilter('Dentist'),
-                  _buildDoctorFilter('Nutritionist'),
-                ],
-              ),
-            ),
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    Text(
+      'Categories',
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ],
+),
+SizedBox(height: 10),
+LayoutBuilder(
+  builder: (context, constraints) {
+    int crossAxisCount = (constraints.maxWidth ~/ 100).clamp(2, 4); // responsive
+    return GridView.count(
+      crossAxisCount: crossAxisCount,
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      childAspectRatio: 2.5,
+      children: [
+        _buildCategoryButton(context, 'Foods', FoodsScreen(), emoji: '🥦'),
+        _buildCategoryButton(context, 'Sports', SportsScreen(), emoji: '🏃‍♂️'),
+        _buildCategoryButton(context, 'Health', HealthScreen(), emoji: '💊'),
+      ],
+    );
+  },
+),
           ],
         ),
       ),
@@ -254,42 +285,76 @@ class HomeScreenContent extends StatelessWidget {
   }
 
   Widget _buildSpecialtyIcon(IconData icon, String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: Column(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            padding: EdgeInsets.all(12),
-            child: Icon(icon, color: Colors.blue),
-          ),
-          SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ],
+  return Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Container(
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        padding: EdgeInsets.all(4),
+        child: Icon(icon, color: Colors.blue),
       ),
-    );
-  }
+      SizedBox(height: 4),
+      Text(
+        label,
+        style: TextStyle(fontSize: 12, color: Colors.grey),
+        textAlign: TextAlign.center,
+      ),
+    ],
+  );
+}
 
-  Widget _buildDoctorFilter(String label, {bool isSelected = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-      child: ElevatedButton(
-        onPressed: () {},
-        child: Text(label),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isSelected ? Colors.blue : Colors.white,
-          foregroundColor: isSelected ? Colors.white : Colors.blue,
-          side: BorderSide(color: Colors.blue),
+
+
+
+ Widget _buildCategoryButton(BuildContext context, String label, Widget screen, {required String emoji}) {
+  return InkWell(
+    onTap: () {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
+    },
+    borderRadius: BorderRadius.circular(10),
+    child: Container(
+      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: const Color.fromARGB(255, 25, 117, 183),
+          width: 2.0,
+        ),
+        borderRadius: BorderRadius.circular(10),
+        color: Colors.white,
+      ),
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                emoji,
+                style: TextStyle(fontSize: 20),
+              ),
+              SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: const Color.fromARGB(255, 25, 117, 183),
+                ),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
+            ],
+          ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
+
 }
 
 

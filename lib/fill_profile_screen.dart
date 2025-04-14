@@ -236,7 +236,7 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor:
                                   Colors.blue, // Set background color to blue
-                              minimumSize: const Size(double.infinity, 50),
+                              minimumSize: const Size(250, 50),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
                               ),
