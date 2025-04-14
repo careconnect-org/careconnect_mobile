@@ -1,9 +1,9 @@
-import 'package:careconnect/history_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class ChatDetailScreen extends StatefulWidget {
-  final Doctor doctor;
+  final Map<String, dynamic> doctor;
 
   const ChatDetailScreen({Key? key, required this.doctor}) : super(key: key);
 
@@ -53,7 +53,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.doctor.name,
+          (widget.doctor['name']),
           style: const TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
