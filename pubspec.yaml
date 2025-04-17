@@ -19,6 +19,8 @@ dev_dependencies:
     sdk: flutter
   flutter_app_name: ^0.1.0
   flutter_lints: ^5.0.0
+  url_launcher: ^6.3.1
+
 
 flutter_app_name:
   name: "Care Connect"
