@@ -1,7 +1,10 @@
-import 'package:careconnect/home_screen.dart';
-import 'package:flutter/material.dart';
-import 'createaccount_screen.dart';
+import 'dart:convert';
 
+import 'package:careconnect/bottom_Screen.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'createaccount_screen.dart';
+import 'package:http/http.dart' as http;  
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
@@ -23,44 +26,108 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.dispose();
     super.dispose();
   }
+Future<void> _login() async {
+  if (_formKey.currentState!.validate()) {
+    setState(() {
+      _isLoading = true;
+    });
 
-  void _login() {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
+    try {
+      // Prepare request body
+      Map<String, String> loginData = {
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text.trim(),
+      };
+      
+      print("Login data to send: $loginData");
+      
+      // Use regular POST request with JSON body
+      final response = await http.post(
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/user/login'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(loginData),
+      );
+      
+      if (!mounted) return;
+      
+      // Process response
+      final responseData = json.decode(response.body);
+      print("Response from login API: $responseData");
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Save data to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        
+        // Save token
+        if (responseData['token'] != null) {
+          await prefs.setString('auth_token', responseData['token']);
+        }
+        
+        // Save user data
+        if (responseData['user'] != null) {
 
-      // Simulate login process
-      Future.delayed(const Duration(seconds: 2), () {
+          await prefs.setString('user_id', responseData['user']['_id']);
+          await prefs.setString('username', responseData['user']['username']);
+          await prefs.setString('first_name', responseData['user']['firstName']);
+          await prefs.setString('last_name', responseData['user']['lastName']);
+          await prefs.setString('user_image', responseData['user']['image'] ?? '');
+          await prefs.setString('user_role', responseData['user']['role']);
+          await prefs.setString('phone_number', responseData['user']['phoneNumber']);
+          await prefs.setString('date_of_birth', responseData['user']['dateOfBirth']);
+          await prefs.setString('user_gender', responseData['user']['gender']);
+
+          await prefs.setString('user_data', jsonEncode(responseData['user']));
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Login successful!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => BottomScreen()),
+          );
+        }
+      } else {
+        // Handle errors
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(responseData['message'] ?? 'Failed to login'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (error) {
+      print('Error during login: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Network error occurred. Please try again.'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
-
-        // TODO: Implement actual authentication logic
-        _showLoginResult();
-      });
+      }
     }
   }
-
-  void _showLoginResult() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Login Result'),
-        content: const Text('Login Successfull implemented.'),
-        actions: [
-          TextButton(
-            onPressed: () => 
-            Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) =>  HomeScreen()),
-      ),
-            child: const Text('Okay'),
-          ),
-        ],
-      ),
-    );
-  }
+}
+ 
 
   void _showErrorDialog(String message) {
     showDialog(
@@ -81,6 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -88,18 +156,12 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Back Button
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-
-                const SizedBox(height: 20),
+                const SizedBox(height: 40),
 
                 // Logo
                 Center(
                   child: Image.asset(
-                    'assets/images/adaptive-icon.png', 
+                    'assets/images/adaptive-icon.png',
                     height: 150,
                     width: 250,
                   ),
@@ -347,7 +409,6 @@ class _LoginScreenState extends State<LoginScreen> {
             Icon(icon, size: 24, color: iconColor ?? Colors.black)
           else if (icon is String)
             Image.asset(icon, height: 24, width: 24),
-
           const SizedBox(width: 10),
           Text(
             text,

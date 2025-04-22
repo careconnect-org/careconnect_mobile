@@ -74,7 +74,8 @@ class _MyAppointmentsScreenState extends State<AppointmentScreen>
     }
   }
 
-  Widget _buildAppointmentCard(Map<String, String> appointment, {bool showActions = false}) {
+  Widget _buildAppointmentCard(Map<String, String> appointment,
+      {bool showActions = false}) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 4,
@@ -134,11 +135,15 @@ class _MyAppointmentsScreenState extends State<AppointmentScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("My Appointments"),
+      backgroundColor: Colors.white,
+      appBar: AppBar(automaticallyImplyLeading: false,
+        backgroundColor: Colors.blue,
+        title: const Text("My Appointments", style: TextStyle(color: Colors.white),),
         centerTitle: true,
-        backgroundColor: const Color(0xFFF7F7F7),
         bottom: TabBar(
+          indicatorColor: Colors.blue,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
           controller: _tabController,
           tabs: const [
             Tab(text: "Upcoming"),

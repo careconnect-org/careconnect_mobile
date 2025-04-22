@@ -1,11 +1,8 @@
 import 'package:careconnect/FoodsScreen.dart';
 import 'package:careconnect/SportsScreen.dart';
 import 'package:flutter/material.dart';
-import 'appointment_screen.dart'; 
-import 'history_screen.dart'; 
 import 'favorite_doctor_screen.dart';
 import 'notification_screen.dart';
-import 'profile_screen.dart'; 
 import 'package:careconnect/doctorscreen.dart';
 import 'HealthScreen.dart';
 
@@ -16,40 +13,28 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-
-  int _currentIndex = 0;
-
-  // List of screens for each BottomNavigationBar item
-  final List<Widget> _screens = [
-    HomeScreenContent(),  
-    AppointmentScreen(),  
-    MessageHistoryScreen(),      
-    ProfileScreen(),      
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Scaffold( 
       appBar: AppBar(
+        backgroundColor: Colors.blue,
+        iconTheme: IconThemeData(color: Colors.white),
         leading: Padding(
           padding: const EdgeInsets.all(8.0),
           child: CircleAvatar(
-            backgroundImage: NetworkImage('assets/images/avatar.png'),
+            backgroundImage: AssetImage('assets/images/avatar.png'),
           ),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Good Morning 👋',
-                style: TextStyle(fontSize: 14, color: Colors.grey)),
+                style: TextStyle(fontSize: 14, color: Colors.white)),
             Text('Andrew Ainsley',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
           ],
         ),
         actions: [
@@ -65,47 +50,14 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.favorite_border),
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => MyFavoriteDoctorScreen()),
+                MaterialPageRoute(
+                    builder: (context) => MyFavoriteDoctorScreen()),
               );
             },
           ),
         ],
       ),
-      body: _screens[_currentIndex], 
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Appointment',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'History',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Profile',
-          ),
-        ],
-        currentIndex: _currentIndex,
-        onTap: _onItemTapped, // Handle item taps
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-      ),
-    );
-  }
-}
-
-class HomeScreenContent extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,12 +113,12 @@ class HomeScreenContent extends StatelessWidget {
                       SizedBox(height: 12),
                       ElevatedButton(
                         onPressed: () {
-                            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HealthScreen(),
-              ),
-            );
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => HealthScreen(),
+                            ),
+                          );
                         },
                         child: Text('Check Now'),
                         style: ElevatedButton.styleFrom(
@@ -196,88 +148,93 @@ class HomeScreenContent extends StatelessWidget {
             SizedBox(height: 16),
 
             // Doctor Specialty Section
-           Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-    Text(
-      'Doctor Specialty',
-      style: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-    TextButton(
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DoctorsPage(),
-          ),
-        );
-      },
-      child: Text('See All'),
-    ),
-  ],
-),
-SizedBox(height: 10),
-LayoutBuilder(
-  builder: (context, constraints) {
-    int crossAxisCount = (constraints.maxWidth ~/ 80).clamp(2, 4); // responsive
-    return GridView.count(
-      crossAxisCount: crossAxisCount,
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1,
-      children: [
-        _buildSpecialtyIcon(Icons.medical_services, 'General'),
-        _buildSpecialtyIcon(Icons.airline_seat_flat, 'Cardiolo..'),
-        _buildSpecialtyIcon(Icons.remove_red_eye, 'Ophthal..'),
-        _buildSpecialtyIcon(Icons.restaurant, 'Nutritio..'),
-        _buildSpecialtyIcon(Icons.psychology, 'Neurolo..'),
-        _buildSpecialtyIcon(Icons.child_friendly, 'Pediatr..'),
-        _buildSpecialtyIcon(Icons.radio, 'Radiolo..'),
-      ],
-    );
-  },
-),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Doctor Specialty',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DoctorsPage(),
+                      ),
+                    );
+                  },
+                  child: Text('See All'),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                int crossAxisCount =
+                    (constraints.maxWidth ~/ 80).clamp(2, 4); // responsive
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1,
+                  children: [
+                    _buildSpecialtyIcon(Icons.medical_services, 'General'),
+                    _buildSpecialtyIcon(Icons.airline_seat_flat, 'Cardiolo..'),
+                    _buildSpecialtyIcon(Icons.remove_red_eye, 'Ophthal..'),
+                    _buildSpecialtyIcon(Icons.restaurant, 'Nutritio..'),
+                    _buildSpecialtyIcon(Icons.psychology, 'Neurolo..'),
+                    _buildSpecialtyIcon(Icons.child_friendly, 'Pediatr..'),
+                    _buildSpecialtyIcon(Icons.radio, 'Radiolo..'),
+                  ],
+                );
+              },
+            ),
 
 // Add spacing before categories
-SizedBox(height: 24),
+            SizedBox(height: 24),
 
             // Top Doctors Section
             Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-    Text(
-      'Categories',
-      style: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-  ],
-),
-SizedBox(height: 10),
-LayoutBuilder(
-  builder: (context, constraints) {
-    int crossAxisCount = (constraints.maxWidth ~/ 100).clamp(2, 4); // responsive
-    return GridView.count(
-      crossAxisCount: crossAxisCount,
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 2.5,
-      children: [
-        _buildCategoryButton(context, 'Foods', FoodsScreen(), emoji: '🥦'),
-        _buildCategoryButton(context, 'Sports', SportsScreen(), emoji: '🏃‍♂️'),
-        _buildCategoryButton(context, 'Health', HealthScreen(), emoji: '💊'),
-      ],
-    );
-  },
-),
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Categories',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                int crossAxisCount =
+                    (constraints.maxWidth ~/ 100).clamp(2, 4); // responsive
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 2.5,
+                  children: [
+                    _buildCategoryButton(context, 'Foods', FoodsScreen(),
+                        emoji: '🥦'),
+                    _buildCategoryButton(context, 'Sports', SportsScreen(),
+                        emoji: '🏃‍♂️'),
+                    _buildCategoryButton(context, 'Health', HealthScreen(),
+                        emoji: '💊'),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -285,78 +242,71 @@ LayoutBuilder(
   }
 
   Widget _buildSpecialtyIcon(IconData icon, String label) {
-  return Column(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Container(
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: EdgeInsets.all(4),
+          child: Icon(icon, color: Colors.blue),
+        ),
+        SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryButton(BuildContext context, String label, Widget screen,
+      {required String emoji}) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+            context, MaterialPageRoute(builder: (context) => screen));
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.blue.shade50,
+          border: Border.all(
+            color: const Color.fromARGB(255, 25, 117, 183),
+            width: 2.0,
+          ),
           borderRadius: BorderRadius.circular(10),
+          color: Colors.white,
         ),
-        padding: EdgeInsets.all(4),
-        child: Icon(icon, color: Colors.blue),
-      ),
-      SizedBox(height: 4),
-      Text(
-        label,
-        style: TextStyle(fontSize: 12, color: Colors.grey),
-        textAlign: TextAlign.center,
-      ),
-    ],
-  );
-}
-
-
-
-
- Widget _buildCategoryButton(BuildContext context, String label, Widget screen, {required String emoji}) {
-  return InkWell(
-    onTap: () {
-      Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
-    },
-    borderRadius: BorderRadius.circular(10),
-    child: Container(
-      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: const Color.fromARGB(255, 25, 117, 183),
-          width: 2.0,
-        ),
-        borderRadius: BorderRadius.circular(10),
-        color: Colors.white,
-      ),
-      child: Center(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                emoji,
-                style: TextStyle(fontSize: 20),
-              ),
-              SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: const Color.fromARGB(255, 25, 117, 183),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  emoji,
+                  style: TextStyle(fontSize: 20),
                 ),
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-              ),
-            ],
+                SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: const Color.fromARGB(255, 25, 117, 183),
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
-
-
-}
-
-
-
-

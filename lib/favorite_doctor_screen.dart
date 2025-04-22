@@ -98,12 +98,16 @@ class _MyFavoriteDoctorScreenState extends State<MyFavoriteDoctorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.blue,
+        iconTheme: IconThemeData(color: Colors.white),
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('My Favorite Doctor'),
+        title:
+            Text('My Favorite Doctor', style: TextStyle(color: Colors.white)),
         actions: [
           IconButton(
             icon: Icon(Icons.search),
@@ -148,7 +152,8 @@ class _MyFavoriteDoctorScreenState extends State<MyFavoriteDoctorScreen> {
                         children: [
                           Icon(Icons.star, color: Colors.yellow, size: 16),
                           SizedBox(width: 4),
-                          Text('${doctor['rating']} (${doctor['reviews']} reviews)'),
+                          Text(
+                              '${doctor['rating']} (${doctor['reviews']} reviews)'),
                         ],
                       ),
                     ],
