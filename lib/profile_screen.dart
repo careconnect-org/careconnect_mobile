@@ -1,139 +1,316 @@
+import 'dart:convert';
+import 'package:careconnect/edit_profile_screen.dart';
+import 'package:careconnect/login-screen.dart';
+import 'package:careconnect/notification_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:careconnect/fill_profile_screen.dart';
-import 'package:careconnect/updatepassword_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({Key? key}) : super(key: key);
+
+  @override
+  _ProfileScreenState createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic>? userData;
+
+  @override
+  void initState() {
+    super.initState();
+    displayUserProfile();
+  }
+
+  Future<Map<String, dynamic>?> getUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userDataString = prefs.getString('user_data');
+    if (userDataString == null) {
+      return null;
+    }
+    try {
+      final userData = jsonDecode(userDataString) as Map<String, dynamic>;
+      return userData;
+    } catch (e) {
+      print('Error parsing user data: $e');
+      return null;
+    }
+  }
+
+  void displayUserProfile() async {
+    final fetchedUserData = await getUserData();
+
+    if (fetchedUserData != null) {
+      setState(() {
+        userData = fetchedUserData;
+      });
+    } else {
+      print('No user data found');
+    }
+  }
+
+  void showLogoutConfirmation() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 16),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Logout',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                const Text(
+                  'Are you sure you want to log out?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 40),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 56,
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.blue.withOpacity(0.1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: SizedBox(
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.remove('user_data');
+                            Navigator.pop(context);
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                  builder: (context) => const LoginScreen()),
+                              (route) => false,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                          ),
+                          child: const Text(
+                            'Yes, Logout',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
       appBar: AppBar(
-        elevation: 1,
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.blue,
+        automaticallyImplyLeading: false,
         title: const Text(
-          "My Profile",
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
+          "Profile",
+          style: TextStyle(color: Colors.white),
         ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
+        centerTitle: false,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-
-            // Avatar
-            CircleAvatar(
-              radius: 50,
-              backgroundImage: AssetImage("assets/images/user_avatar.png"),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Name & Email
-            const Text(
-              "John Doe",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              "john.doe@example.com",
-              style: TextStyle(color: Colors.grey),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Info Cards
-            _buildInfoCard(Icons.phone, "Phone", "+123 456 7890"),
-            _buildInfoCard(Icons.calendar_today, "DOB", "01 Jan 1990"),
-            _buildInfoCard(Icons.location_on, "Location", "Kigali, Rwanda"),
-
-            const SizedBox(height: 30),
-
-            // Update Profile Button
-            _buildActionButton(
-              context,
-              icon: Icons.edit,
-              label: "Update Profile",
-              onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const FillProfileScreen()),
-  );
-},
-            ),
-
-            const SizedBox(height: 12),
-
-            // Change Password Button
-            _buildActionButton(
-              context,
-              icon: Icons.lock_outline,
-              label: "Change Password",
-              onTap: () {
-                 Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const UpdatePasswordScreen(),
-      ),
-    );
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            // Logout Button
-            _buildActionButton(
-              context,
-              icon: Icons.logout,
-              label: "Logout",
-              isLogout: true,
-              onTap: () {
-                // TODO: Handle logout
-              },
-            ),
-          ],
-        ),
+      body: SafeArea(
+        child: userData != null
+            ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 24),
+                    Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundColor: Colors.grey[200],
+                          backgroundImage: NetworkImage(
+                            userData?['profileImage'] ??
+                                'https://res.cloudinary.com/dxxdonflq/image/upload/v1745164399/CareConnect/IMAGE_1745164398684.jpg',
+                          ),
+                        ),
+                        Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                          padding: const EdgeInsets.all(4),
+                          child: const Icon(
+                            Icons.edit,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '${userData!['firstName']} ${userData!['lastName']}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      userData!['phoneNumber'] ?? '+1 111 467 378 399',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    buildMenuItem(
+                      icon: Icons.person_outline,
+                      title: 'Edit Profile',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const EditProfilePage(),
+                          ),
+                        );
+                      },
+                    ),
+                    buildMenuItem(
+                      icon: Icons.notifications_none,
+                      title: 'Notification',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => NotificationScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    buildMenuItem(
+                      icon: Icons.security,
+                      title: 'Security',
+                      onTap: () {},
+                    ),
+                    buildMenuItem(
+                      icon: Icons.help_outline,
+                      title: 'Help Center',
+                      onTap: () {},
+                    ),
+                    const SizedBox(height: 100),
+                    buildMenuItem(
+                      icon: Icons.logout,
+                      title: 'Logout',
+                      color: Colors.red,
+                      onTap: () {
+                        showLogoutConfirmation();
+                      },
+                    ),
+                  ],
+                ),
+              )
+            : const Center(child: CircularProgressIndicator()),
       ),
     );
   }
 
-  Widget _buildInfoCard(IconData icon, String title, String value) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.blue),
-        title: Text(title),
-        subtitle: Text(value),
-      ),
-    );
-  }
-
-  Widget _buildActionButton(BuildContext context,
-      {required IconData icon,
-      required String label,
-      required VoidCallback onTap,
-      bool isLogout = false}) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isLogout ? Colors.red[400] : Colors.blue,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
+  Widget buildMenuItem({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    Color color = Colors.black,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          shape: BoxShape.circle,
         ),
-        icon: Icon(icon, color: Colors.white),
-        label: Text(label, style: const TextStyle(color: Colors.white)),
-        onPressed: onTap,
+        child: Icon(icon, color: color),
       ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w500,
+          color: color,
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (subtitle != null)
+            Text(
+              subtitle,
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          const SizedBox(width: 8),
+          Icon(Icons.chevron_right, color: Colors.grey[400]),
+        ],
+      ),
+      onTap: onTap,
     );
   }
 }
