@@ -1,20 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 // Model class for Notification
 class NotificationItem {
-  final IconData icon;
-  final Color iconColor;
+  final String id;
   final String title;
-  final String subtitle;
-  final String time;
+  final String message;
+  final String createdAt;
+  final bool isRead;
 
   NotificationItem({
-    required this.icon,
-    required this.iconColor,
+    required this.id,
     required this.title,
-    required this.subtitle,
-    required this.time,
+    required this.message,
+    required this.createdAt,
+    required this.isRead,
   });
+
+  factory NotificationItem.fromJson(Map<String, dynamic> json) {
+    return NotificationItem(
+      id: json['_id'] ?? '',
+      title: json['title'] ?? '',
+      message: json['message'] ?? '',
+      createdAt: json['createdAt'] ?? '',
+      isRead: json['isRead'] ?? false,
+    );
+  }
 }
 
 class NotificationScreen extends StatefulWidget {
@@ -23,21 +36,56 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
-  // Simulate an API call to fetch notifications
-  Future<List<NotificationItem>> fetchNotifications() async {
-    await Future.delayed(Duration(seconds: 2)); // simulate network delay
+  bool _isLoading = true;
+  List<NotificationItem> _notifications = [];
+  String? _userId;
+  String? _authToken;
 
-    // Return one manual notification for now (mocked)
-    return [
-      NotificationItem(
-        icon: Icons.cancel,
-        iconColor: Colors.red,
-        title: 'Appointment Cancelled!',
-        subtitle:
-            'You have successfully cancelled your appointment with Dr. Alan Watson on December 24, 2024, 10:00 am. 80% of the funds will be refunded to your account.',
-        time: 'Today | 15:36 PM',
-      ),
-    ];
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _userId = prefs.getString('user_id');
+      _authToken = prefs.getString('auth_token');
+      
+      if (_userId != null && _authToken != null) {
+        await _fetchNotifications();
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchNotifications() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/notify/get/$_userId'),
+        headers: {
+          'Authorization': 'Bearer $_authToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _notifications = data.map((item) => NotificationItem.fromJson(item)).toList();
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to load notifications');
+      }
+    } catch (e) {
+      print('Error fetching notifications: $e');
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -46,82 +94,84 @@ class _NotificationScreenState extends State<NotificationScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.blue,
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('Notifications', style: TextStyle(color: Colors.white),),
+        title: const Text('Notifications', style: TextStyle(color: Colors.white)),
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert),
-            onPressed: () {},
+            icon: const Icon(Icons.refresh),
+            onPressed: _fetchNotifications,
           ),
         ],
       ),
-      body: FutureBuilder<List<NotificationItem>>(
-        future: fetchNotifications(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Failed to load notifications'),
-            );
-          }
-
-          final notifications = snapshot.data ?? [];
-
-          if (notifications.isEmpty) {
-            return Center(
-              child: Text('No notifications yet.'),
-            );
-          }
-
-          return ListView.builder(
-            itemCount: notifications.length,
-            itemBuilder: (context, index) {
-              final item = notifications[index];
-              return _buildNotificationItem(item);
-            },
-          );
-        },
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _notifications.isEmpty
+              ? const Center(child: Text('No notifications yet.'))
+              : ListView.builder(
+                  itemCount: _notifications.length,
+                  itemBuilder: (context, index) {
+                    final item = _notifications[index];
+                    return _buildNotificationItem(item);
+                  },
+                ),
     );
   }
 
   Widget _buildNotificationItem(NotificationItem item) {
     return ListTile(
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       leading: Container(
-        padding: EdgeInsets.all(10),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: item.iconColor.withOpacity(0.1),
+          color: item.isRead ? Colors.grey.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(item.icon, color: item.iconColor),
+        child: Icon(
+          item.isRead ? Icons.check_circle : Icons.notifications,
+          color: item.isRead ? Colors.grey : Colors.blue,
+        ),
       ),
       title: Text(
         item.title,
-        style: TextStyle(fontWeight: FontWeight.bold),
+        style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
-            item.subtitle,
+            item.message,
             style: TextStyle(color: Colors.grey[700]),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
-            item.time,
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+            _formatDate(item.createdAt),
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ],
       ),
     );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays == 0) {
+        return 'Today | ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+      } else if (difference.inDays == 1) {
+        return 'Yesterday | ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+      } else {
+        return '${date.day}/${date.month}/${date.year} | ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+      }
+    } catch (e) {
+      return dateString;
+    }
   }
 }
