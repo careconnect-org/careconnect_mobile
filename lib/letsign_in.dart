@@ -8,6 +8,7 @@ class LetsYouInScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -16,20 +17,11 @@ class LetsYouInScreen extends StatelessWidget {
             children: [
               const SizedBox(height: 40),
               
-              // Back Button
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-              
+                          
               const SizedBox(height: 40),
               
-              // Illustration
               Image.asset(
-                'assets/images/letmein.png', // Replace with your illustration
+                'assets/images/letmein.png', 
                 height: 150,
                 width: 250,
               ),

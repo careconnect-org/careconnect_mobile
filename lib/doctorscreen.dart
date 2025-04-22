@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:careconnect/chatdetailscreen.dart';
 
 class DoctorsPage extends StatelessWidget {
-   DoctorsPage({super.key});
+  DoctorsPage({super.key});
 
   static const List<Map<String, dynamic>> doctors = const [
     {
       'name': 'Dr. Aidan Allende',
       'specialty': 'Cardiologist',
       'rating': 4.8,
-        'available': true,
+      'available': true,
       'workingHours': 'Mon-Fri, 9:00 AM - 5:00 PM',
       'image': 'https://i.pravatar.cc/150?img=32'
     },
@@ -17,7 +17,7 @@ class DoctorsPage extends StatelessWidget {
       'name': 'Dr. Iker Holl',
       'specialty': 'Dermatologist',
       'rating': 4.5,
-        'available': true,
+      'available': true,
       'workingHours': 'Tue-Sat, 10:00 AM - 6:00 PM',
       'image': 'https://i.pravatar.cc/150?img=12'
     },
@@ -25,7 +25,7 @@ class DoctorsPage extends StatelessWidget {
       'name': 'Dr. Jada Srnsky',
       'specialty': 'Psychiatrist',
       'rating': 4.9,
-        'available': false,
+      'available': false,
       'workingHours': 'Mon-Wed, 12:00 PM - 8:00 PM',
       'image': 'https://i.pravatar.cc/150?img=5'
     },
@@ -34,18 +34,20 @@ class DoctorsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-       appBar: AppBar(
-      title: const Text(
-        "Our Doctors",
-        style: TextStyle(
-          color: Colors.white,  // Set the text color
-          fontSize: 18,         // Set the font size
-          fontWeight: FontWeight.bold,  // Set the font weight
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        iconTheme: IconThemeData(color: Colors.white),
+        title: const Text(
+          "Our Doctors",
+          style: TextStyle(
+            color: Colors.white, // Set the text color
+            fontSize: 18, // Set the font size
+            fontWeight: FontWeight.bold, // Set the font weight
+          ),
         ),
+        centerTitle: true,
+        backgroundColor: Colors.blue, // AppBar background color
       ),
-      centerTitle: true,
-      backgroundColor: Colors.grey,  // AppBar background color
-    ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: doctors.length,
@@ -94,18 +96,22 @@ class DoctorsPage extends StatelessWidget {
                       ),
                       Row(
                         children: [
-                          const Icon(Icons.star, color: Colors.orange, size: 16),
+                          const Icon(Icons.star,
+                              color: Colors.orange, size: 16),
                           Text("${doctor['rating']}"),
                           const SizedBox(width: 10),
                           Icon(
                             Icons.circle,
-                            color: doctor['available'] ? Colors.green : Colors.red,
+                            color:
+                                doctor['available'] ? Colors.green : Colors.red,
                             size: 10,
                           ),
                           Text(
                             doctor['available'] ? " Online" : " Offline",
                             style: TextStyle(
-                              color: doctor['available'] ? Colors.green : Colors.red,
+                              color: doctor['available']
+                                  ? Colors.green
+                                  : Colors.red,
                               fontSize: 12,
                             ),
                           ),
@@ -121,19 +127,18 @@ class DoctorsPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton.icon(
-                 onPressed: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ChatDetailScreen(doctor: doctor),
-    ),
-  );
-},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatDetailScreen(doctor: doctor),
+                      ),
+                    );
+                  },
                   icon: const Icon(Icons.chat_bubble_outline),
                   label: const Text("Chat"),
                   style: TextButton.styleFrom(foregroundColor: Colors.teal),
                 ),
-                
               ],
             )
           ],
