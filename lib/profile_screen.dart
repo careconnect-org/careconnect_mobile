@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:careconnect/edit_profile_screen.dart';
+import 'package:careconnect/helpcenter.dart';
 import 'package:careconnect/login-screen.dart';
 import 'package:careconnect/notification_screen.dart';
+import 'package:careconnect/security_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -14,6 +17,8 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? userData;
+  String? profileImageUrl;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -24,27 +29,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<Map<String, dynamic>?> getUserData() async {
     final prefs = await SharedPreferences.getInstance();
     final userDataString = prefs.getString('user_data');
-    if (userDataString == null) {
+    final authToken = prefs.getString('auth_token');
+
+    if (userDataString == null || authToken == null) {
       return null;
     }
+
     try {
+      // First get the basic user data
       final userData = jsonDecode(userDataString) as Map<String, dynamic>;
-      return userData;
+
+      // Then fetch the user profile including the image
+      final response = await http.get(
+        Uri.parse(
+            'https://careconnect-api-v2kw.onrender.com/api/user/profile/${userData['_id']}'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Profile API Response Status: ${response.statusCode}');
+      print('Profile API Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final profileData = jsonDecode(response.body);
+        print('Profile Data: $profileData');
+
+        // Merge profile data with existing user data
+        userData.addAll(profileData);
+        // Update the stored user data with the new information
+        await prefs.setString('user_data', jsonEncode(userData));
+
+        // Extract profile image URL
+        final imageUrl = profileData['image'] as String?;
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          print('Profile Image URL: $imageUrl');
+          setState(() {
+            profileImageUrl = imageUrl;
+          });
+          return userData;
+        } else {
+          print('No profile image found in response');
+          return userData;
+        }
+      } else if (response.statusCode == 404) {
+        print('Profile not found, using basic user data');
+        return userData;
+      } else {
+        print('Failed to fetch profile data: ${response.statusCode}');
+        return userData; // Return existing data if fetch fails
+      }
     } catch (e) {
-      print('Error parsing user data: $e');
+      print('Error getting user data: $e');
       return null;
     }
   }
 
   void displayUserProfile() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     final fetchedUserData = await getUserData();
 
     if (fetchedUserData != null) {
       setState(() {
         userData = fetchedUserData;
+        profileImageUrl = fetchedUserData['profileImage'] as String?;
+        print('Setting profile image URL: $profileImageUrl');
+        _isLoading = false;
       });
     } else {
       print('No user data found');
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -125,14 +185,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         height: 56,
                         child: ElevatedButton(
                           onPressed: () async {
-                            final prefs = await SharedPreferences.getInstance();
-                            await prefs.remove('user_data');
-                            Navigator.pop(context);
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                  builder: (context) => const LoginScreen()),
-                              (route) => false,
-                            );
+                            try {
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              final authToken = prefs.getString('auth_token');
+                              final userDataString =
+                                  prefs.getString('user_data');
+
+                              if (authToken == null || userDataString == null) {
+                                throw Exception('No authentication data found');
+                              }
+
+                              final userData = jsonDecode(userDataString)
+                                  as Map<String, dynamic>;
+                              final userId = userData['_id'];
+
+                              if (userId == null) {
+                                throw Exception('User ID not found');
+                              }
+
+                              print('Attempting logout with token: $authToken');
+                              print('User ID: $userId');
+
+                              final response = await http.post(
+                                Uri.parse(
+                                    'https://careconnect-api-v2kw.onrender.com/api/user/logout'),
+                                headers: {
+                                  'Authorization': 'Bearer $authToken',
+                                  'Content-Type': 'application/json',
+                                },
+                                body: jsonEncode({
+                                  'userId': userId,
+                                }),
+                              );
+
+                              print(
+                                  'Logout response status: ${response.statusCode}');
+                              print('Logout response body: ${response.body}');
+
+                              if (response.statusCode == 200) {
+                                // Clear all stored data
+                                await prefs.remove('user_data');
+                                await prefs.remove('auth_token');
+
+                                if (mounted) {
+                                  Navigator.pop(context);
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                        builder: (context) =>
+                                            const LoginScreen()),
+                                    (route) => false,
+                                  );
+                                }
+                              } else if (response.statusCode == 401) {
+                                // If token is invalid, clear data and redirect to login
+                                await prefs.remove('user_data');
+                                await prefs.remove('auth_token');
+                                if (mounted) {
+                                  Navigator.pop(context);
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                        builder: (context) =>
+                                            const LoginScreen()),
+                                    (route) => false,
+                                  );
+                                }
+                              } else {
+                                throw Exception(
+                                    'Failed to logout: ${response.statusCode} - ${response.body}');
+                              }
+                            } catch (e) {
+                              print('Logout error: $e');
+                              if (mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        'Error during logout: ${e.toString()}'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
@@ -173,103 +307,144 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: TextStyle(color: Colors.white),
         ),
         centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: displayUserProfile,
+          ),
+        ],
       ),
       body: SafeArea(
-        child: userData != null
-            ? Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 24),
-                    Stack(
-                      alignment: Alignment.bottomRight,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : userData != null
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Column(
                       children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: Colors.grey[200],
-                          backgroundImage: NetworkImage(
-                            userData?['profileImage'] ??
-                                'https://res.cloudinary.com/dxxdonflq/image/upload/v1745164399/CareConnect/IMAGE_1745164398684.jpg',
+                        const SizedBox(height: 24),
+                        Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            CircleAvatar(
+                              radius: 50,
+                              backgroundColor: Colors.grey[200],
+                              backgroundImage: profileImageUrl != null &&
+                                      profileImageUrl!.isNotEmpty
+                                  ? NetworkImage(profileImageUrl!)
+                                  : null,
+                              child: profileImageUrl == null ||
+                                      profileImageUrl!.isEmpty
+                                  ? const Icon(
+                                      Icons.person,
+                                      size: 50,
+                                      color: Colors.grey,
+                                    )
+                                  : null,
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const EditProfilePage(),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  color: Colors.blue,
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(4),
+                                child: const Icon(
+                                  Icons.edit,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '${userData!['firstName']} ${userData!['lastName']}',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Container(
-                          decoration: const BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
+                        const SizedBox(height: 8),
+                        Text(
+                          userData!['phoneNumber'] ?? '+1 111 467 378 399',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
                           ),
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(
-                            Icons.edit,
-                            color: Colors.white,
-                            size: 18,
-                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        buildMenuItem(
+                          icon: Icons.person_outline,
+                          title: 'Edit Profile',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EditProfilePage(),
+                              ),
+                            );
+                          },
+                        ),
+                        buildMenuItem(
+                          icon: Icons.notifications_none,
+                          title: 'Notification',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => NotificationScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        buildMenuItem(
+                          icon: Icons.security,
+                          title: 'Security',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SecurityScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        buildMenuItem(
+                          icon: Icons.help_outline,
+                          title: 'Help Center',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HelpCenterScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 100),
+                        buildMenuItem(
+                          icon: Icons.logout,
+                          title: 'Logout',
+                          color: Colors.red,
+                          onTap: () {
+                            showLogoutConfirmation();
+                          },
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '${userData!['firstName']} ${userData!['lastName']}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      userData!['phoneNumber'] ?? '+1 111 467 378 399',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    buildMenuItem(
-                      icon: Icons.person_outline,
-                      title: 'Edit Profile',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const EditProfilePage(),
-                          ),
-                        );
-                      },
-                    ),
-                    buildMenuItem(
-                      icon: Icons.notifications_none,
-                      title: 'Notification',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => NotificationScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    buildMenuItem(
-                      icon: Icons.security,
-                      title: 'Security',
-                      onTap: () {},
-                    ),
-                    buildMenuItem(
-                      icon: Icons.help_outline,
-                      title: 'Help Center',
-                      onTap: () {},
-                    ),
-                    const SizedBox(height: 100),
-                    buildMenuItem(
-                      icon: Icons.logout,
-                      title: 'Logout',
-                      color: Colors.red,
-                      onTap: () {
-                        showLogoutConfirmation();
-                      },
-                    ),
-                  ],
-                ),
-              )
-            : const Center(child: CircularProgressIndicator()),
+                  )
+                : const Center(child: CircularProgressIndicator()),
       ),
     );
   }
