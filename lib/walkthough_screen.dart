@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'letsign_in.dart'; // Make sure to create this file
+import 'letsign_in.dart'; 
 
 class WalkthroughScreens extends StatefulWidget {
   const WalkthroughScreens({Key? key}) : super(key: key);
@@ -48,6 +48,7 @@ class _WalkthroughScreensState extends State<WalkthroughScreens> {
     final currentPageData = _walkthroughPages[_currentPage];
 
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
