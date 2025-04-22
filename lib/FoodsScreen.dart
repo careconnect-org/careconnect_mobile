@@ -4,8 +4,14 @@ class FoodsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Food Recommendations'),
+        backgroundColor: Colors.blue,
+        iconTheme: IconThemeData(color: Colors.white),
+        title: Text(
+          'Food Recommendations',
+          style: TextStyle(color: Colors.white),
+        ),
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -19,7 +25,6 @@ class FoodsScreen extends StatelessWidget {
             children: [
               _buildFoodBanner(context),
               SizedBox(height: 20),
-
               Text(
                 'Meal Plan For Today',
                 style: TextStyle(
@@ -29,7 +34,6 @@ class FoodsScreen extends StatelessWidget {
               ),
               SizedBox(height: 10),
               _buildMealPlan(context),
-
               SizedBox(height: 24),
               Text(
                 'Healthy Recipes',
@@ -40,7 +44,6 @@ class FoodsScreen extends StatelessWidget {
               ),
               SizedBox(height: 10),
               _buildHealthyRecipes(context),
-
               SizedBox(height: 24),
               Text(
                 'Nutrition Categories',
@@ -224,7 +227,8 @@ class FoodsScreen extends StatelessWidget {
                             ),
                           ),
                           Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.orange[50],
                               borderRadius: BorderRadius.circular(12),
@@ -281,7 +285,13 @@ class FoodsScreen extends StatelessWidget {
       },
       {
         'name': 'Smoothie Bowl',
-        'ingredients': ['Banana', 'Spinach', 'Almond milk', 'Granola', 'Fruits'],
+        'ingredients': [
+          'Banana',
+          'Spinach',
+          'Almond milk',
+          'Granola',
+          'Fruits'
+        ],
         'image': 'assets/images/smoothie_bowl.jpg',
       },
     ];
@@ -317,7 +327,8 @@ class FoodsScreen extends StatelessWidget {
                       return Container(
                         height: 90,
                         color: Colors.grey[300],
-                        child: Center(child: Icon(Icons.image, color: Colors.grey[600])),
+                        child: Center(
+                            child: Icon(Icons.image, color: Colors.grey[600])),
                       );
                     },
                   ),

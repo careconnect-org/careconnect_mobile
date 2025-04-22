@@ -1,3 +1,5 @@
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'fill_profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'login-screen.dart';
@@ -13,7 +15,8 @@ class _CreateNewAccountScreenState extends State<CreateNewAccountScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
@@ -38,7 +41,7 @@ class _CreateNewAccountScreenState extends State<CreateNewAccountScreen> {
       setState(() {
         _isLoading = true;
       });
-
+_saveUserData();
       // Simulate account creation process
       Future.delayed(const Duration(seconds: 2), () {
         setState(() {
@@ -66,50 +69,41 @@ class _CreateNewAccountScreenState extends State<CreateNewAccountScreen> {
       ),
     );
   }
+  void _saveUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_email', _emailController.text);
+    await prefs.setString('user_password', _passwordController.text);
+    }
 
   void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Account Created'),
-        content: const Text('Your account has been created successfully!'),
-        actions: [
-          TextButton(
-            onPressed: () {
+    
+
               // Navigate to login screen
               Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => const FillProfileScreen()),
+                MaterialPageRoute(
+                    builder: (context) => const FillProfileScreen()),
               );
-            },
-            child: const Text('Continue to Fill Profile'),
-          ),
-        ],
-      ),
-    );
+        
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Back Button
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-
+             
                 const SizedBox(height: 20),
 
                 // Logo
                 Center(
                   child: Image.asset(
-                    'assets/images/adaptive-icon.png', 
+                    'assets/images/adaptive-icon.png',
                     height: 150,
                     width: 250,
                   ),
@@ -353,7 +347,6 @@ class _CreateNewAccountScreenState extends State<CreateNewAccountScreen> {
             Icon(icon, size: 24, color: iconColor ?? Colors.black)
           else if (icon is String)
             Image.asset(icon, height: 24, width: 24),
-
           const SizedBox(width: 10),
           Text(
             text,

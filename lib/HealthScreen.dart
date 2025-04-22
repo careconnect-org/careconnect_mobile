@@ -4,8 +4,14 @@ class HealthScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Health Recommendations'),
+        backgroundColor: Colors.blue,
+        iconTheme: IconThemeData(color: Colors.white),
+        title: Text(
+          'Health Recommendations',
+          style: TextStyle(color: Colors.white),
+        ),
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -19,7 +25,6 @@ class HealthScreen extends StatelessWidget {
             children: [
               _buildHealthBanner(context),
               SizedBox(height: 20),
-              
               Text(
                 'Daily Health Tips',
                 style: TextStyle(
@@ -29,7 +34,6 @@ class HealthScreen extends StatelessWidget {
               ),
               SizedBox(height: 10),
               _buildHealthTipsList(context),
-              
               SizedBox(height: 24),
               Text(
                 'Recommended Checkups',
@@ -40,7 +44,6 @@ class HealthScreen extends StatelessWidget {
               ),
               SizedBox(height: 10),
               _buildCheckupsList(context),
-              
               SizedBox(height: 24),
               Text(
                 'Health Articles',
@@ -226,8 +229,9 @@ class HealthScreen extends StatelessWidget {
       itemCount: checkups.length,
       itemBuilder: (context, index) {
         final checkup = checkups[index];
-        final bool isUrgent = checkup.containsKey('urgent') && checkup['urgent'] == true;
-        
+        final bool isUrgent =
+            checkup.containsKey('urgent') && checkup['urgent'] == true;
+
         return Card(
           elevation: 2,
           margin: EdgeInsets.only(bottom: 12),
@@ -307,14 +311,15 @@ class HealthScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AspectRatio(
-                aspectRatio: 16/9,
+                aspectRatio: 16 / 9,
                 child: Image.asset(
                   article['image'] as String,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       color: Colors.grey[300],
-                      child: Icon(Icons.image, size: 50, color: Colors.grey[600]),
+                      child:
+                          Icon(Icons.image, size: 50, color: Colors.grey[600]),
                     );
                   },
                 ),

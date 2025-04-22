@@ -1,7 +1,13 @@
-import 'package:careconnect/home_screen.dart';
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:careconnect/bottom_Screen.dart';
+import 'package:careconnect/login-screen.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http; // Added missing http import
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FillProfileScreen extends StatefulWidget {
   const FillProfileScreen({Key? key}) : super(key: key);
@@ -14,12 +20,15 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _dobController = TextEditingController();
+  final TextEditingController _lnameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   File? _profileImage;
-
+  final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
-  String? _gender = 'Select Gender'; // Gender default value
+  String? _gender = 'Select Gender';
+  String? _password;
+  String? _email;
 
   @override
   void dispose() {
@@ -27,56 +36,200 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
     _dobController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _lnameController.dispose();
     super.dispose();
   }
 
-  void _pickImage() async {
-    // Implement your image picker logic here
+  @override
+  void initState() {
+    super.initState();
+    _loadUserCredentials();
   }
 
-  void _saveProfile() {
+  void _loadUserCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _email = prefs.getString('user_email') ?? '';
+      _password = prefs.getString("user_password") ?? '';
+    });
+    print(_email);
+    print(_password);
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _profileImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Failed to pick image. Please try again.')),
+        );
+      }
+    }
+  }
+
+  // Added missing method for showing error dialog
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
 
-      // Simulate saving profile
-      Future.delayed(const Duration(seconds: 2), () {
-        setState(() {
-          _isLoading = false;
-        });
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        // Prepare request body
+        Map<String, String> profileData = {
+          'username': _nameController.text.trim(),
+          'firstName': _nameController.text.trim(),
+          'lastName': _lnameController.text.trim(),
+          'email': _email ?? '',
+          'password': _password ?? '',
+          'phoneNumber': _phoneController.text.trim(),
+          'dateOfBirth': _dobController.text,
+          'gender': _gender == 'Select Gender' ? '' : _gender!,
+        };
 
-        // Navigate to HomeScreen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomeScreen()),
+        print("Profile data to send: $profileData");
+
+        // Create multipart request for image upload
+        final request = http.MultipartRequest(
+          'POST',
+          Uri.parse(
+              'https://careconnect-api-v2kw.onrender.com/api/user/signup'),
         );
-      });
+
+        // Add text fields
+        request.fields.addAll(profileData);
+
+        // Add image file if selected
+        if (_profileImage != null) {
+          try {
+            request.files.add(
+              await http.MultipartFile.fromPath(
+                'image',
+                _profileImage!.path,
+              ),
+            );
+          } catch (e) {
+            print('Error attaching image: $e');
+            _showErrorDialog(
+                'Failed to process image. Please try a different one.');
+            setState(() {
+              _isLoading = false;
+            });
+            return;
+          }
+        }
+
+        // Send the request
+        final streamedResponse = await request.send();
+        final response = await http.Response.fromStream(streamedResponse);
+
+        if (!mounted) return;
+
+        // Process response
+        final responseData = json.decode(response.body);
+        print("Response from profile API: $responseData");
+        print("Response from profile API: $response");
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          // Successfully created user
+          if (responseData['token'] != null) {
+            await prefs.setString('auth_token', responseData['token']);
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile created successfully!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => LoginScreen()),
+            );
+          }
+        } else {
+          // Handle errors
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content:
+                    Text(responseData['message'] ?? 'Failed to create profile'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      } catch (error) {
+        print('Error creating profile: $error');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Network error occurred. Please try again.'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Back Button
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                // text: Text("Fill Profile"),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-
-              const SizedBox(height: 20),
+              const SizedBox(height: 40),
 
               // Profile Image - Centered and large
               Center(
                 child: GestureDetector(
-                  onTap: _pickImage,
+                  onTap: () {
+                    _pickImage(ImageSource.gallery);
+                  },
                   child: CircleAvatar(
                     radius: 80, // Larger profile image
                     backgroundColor: Colors.grey[100],
@@ -101,7 +254,8 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
                     TextFormField(
                       controller: _nameController,
                       decoration: InputDecoration(
-                        labelText: 'Full Name',
+                        labelText: 'First Name',
+                        labelStyle: const TextStyle(fontSize: 12),
                         prefixIcon: const Icon(Icons.person),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
@@ -109,7 +263,27 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Please enter your name';
+                          return 'Please enter your firstname';
+                        }
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    TextFormField(
+                      controller: _lnameController,
+                      decoration: InputDecoration(
+                        labelText: 'LastName',
+                        labelStyle: const TextStyle(fontSize: 12),
+                        prefixIcon: const Icon(Icons.person),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your lastname';
                         }
                         return null;
                       },
@@ -122,6 +296,7 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
                       controller: _dobController,
                       decoration: InputDecoration(
                         labelText: 'Date of Birth',
+                        labelStyle: const TextStyle(fontSize: 12),
                         prefixIcon: const Icon(Icons.calendar_today),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
@@ -151,37 +326,13 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
 
                     const SizedBox(height: 20),
 
-                    // Email Input
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        labelText: 'Email Address',
-                        prefixIcon: const Icon(Icons.email),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                            .hasMatch(value)) {
-                          return 'Please enter a valid email';
-                        }
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 20),
-
                     // Phone Number Input
                     TextFormField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
                         labelText: 'Phone Number',
+                        labelStyle: const TextStyle(fontSize: 12),
                         prefixIcon: const Icon(Icons.phone),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
@@ -202,7 +353,7 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
                       value: _gender,
                       decoration: InputDecoration(
                         labelText: 'Gender',
-                        prefixIcon: const Icon(Icons.transgender),
+                        labelStyle: const TextStyle(fontSize: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),
@@ -234,8 +385,7 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
                         : ElevatedButton(
                             onPressed: _saveProfile,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  Colors.blue, // Set background color to blue
+                              backgroundColor: Colors.blue,
                               minimumSize: const Size(250, 50),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
