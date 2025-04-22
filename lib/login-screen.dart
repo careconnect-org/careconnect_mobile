@@ -4,7 +4,9 @@ import 'package:careconnect/bottom_Screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'createaccount_screen.dart';
-import 'package:http/http.dart' as http;  
+import 'package:http/http.dart' as http;
+import 'package:careconnect/forgot_password_screen.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
@@ -26,108 +28,114 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.dispose();
     super.dispose();
   }
-Future<void> _login() async {
-  if (_formKey.currentState!.validate()) {
-    setState(() {
-      _isLoading = true;
-    });
 
-    try {
-      // Prepare request body
-      Map<String, String> loginData = {
-        'email': _emailController.text.trim(),
-        'password': _passwordController.text.trim(),
-      };
-      
-      print("Login data to send: $loginData");
-      
-      // Use regular POST request with JSON body
-      final response = await http.post(
-        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/user/login'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(loginData),
-      );
-      
-      if (!mounted) return;
-      
-      // Process response
-      final responseData = json.decode(response.body);
-      print("Response from login API: $responseData");
-      
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Save data to SharedPreferences
-        final prefs = await SharedPreferences.getInstance();
-        
-        // Save token
-        if (responseData['token'] != null) {
-          await prefs.setString('auth_token', responseData['token']);
-        }
-        
-        // Save user data
-        if (responseData['user'] != null) {
+  Future<void> _login() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
 
-          await prefs.setString('user_id', responseData['user']['_id']);
-          await prefs.setString('username', responseData['user']['username']);
-          await prefs.setString('first_name', responseData['user']['firstName']);
-          await prefs.setString('last_name', responseData['user']['lastName']);
-          await prefs.setString('user_image', responseData['user']['image'] ?? '');
-          await prefs.setString('user_role', responseData['user']['role']);
-          await prefs.setString('phone_number', responseData['user']['phoneNumber']);
-          await prefs.setString('date_of_birth', responseData['user']['dateOfBirth']);
-          await prefs.setString('user_gender', responseData['user']['gender']);
+      try {
+        // Prepare request body
+        Map<String, String> loginData = {
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text.trim(),
+        };
 
-          await prefs.setString('user_data', jsonEncode(responseData['user']));
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login successful!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
+        print("Login data to send: $loginData");
+
+        // Use regular POST request with JSON body
+        final response = await http.post(
+          Uri.parse('https://careconnect-api-v2kw.onrender.com/api/user/login'),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(loginData),
         );
-        
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => BottomScreen()),
+
+        if (!mounted) return;
+
+        // Process response
+        final responseData = json.decode(response.body);
+        print("Response from login API: $responseData");
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          // Save data to SharedPreferences
+          final prefs = await SharedPreferences.getInstance();
+
+          // Save token
+          if (responseData['token'] != null) {
+            await prefs.setString('auth_token', responseData['token']);
+          }
+
+          // Save user data
+          if (responseData['user'] != null) {
+            await prefs.setString('user_id', responseData['user']['_id']);
+            await prefs.setString('username', responseData['user']['username']);
+            await prefs.setString(
+                'first_name', responseData['user']['firstName']);
+            await prefs.setString(
+                'last_name', responseData['user']['lastName']);
+            await prefs.setString(
+                'user_image', responseData['user']['image'] ?? '');
+            await prefs.setString('user_role', responseData['user']['role']);
+            await prefs.setString(
+                'phone_number', responseData['user']['phoneNumber']);
+            await prefs.setString(
+                'date_of_birth', responseData['user']['dateOfBirth']);
+            await prefs.setString(
+                'user_gender', responseData['user']['gender']);
+
+            await prefs.setString(
+                'user_data', jsonEncode(responseData['user']));
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Login successful!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
           );
+
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => BottomScreen()),
+            );
+          }
+        } else {
+          // Handle errors
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(responseData['message'] ?? 'Failed to login'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
         }
-      } else {
-        // Handle errors
+      } catch (error) {
+        print('Error during login: $error');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(responseData['message'] ?? 'Failed to login'),
+              content: Text('Network error occurred. Please try again.'),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 3),
             ),
           );
         }
-      }
-    } catch (error) {
-      print('Error during login: $error');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Network error occurred. Please try again.'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
-}
- 
 
   void _showErrorDialog(String message) {
     showDialog(
@@ -286,11 +294,19 @@ Future<void> _login() async {
       alignment: Alignment.centerRight,
       child: TextButton(
         onPressed: () {
-          _showErrorDialog('Forgot Password not implemented');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ForgotPasswordScreen(),
+            ),
+          );
         },
         child: const Text(
           'Forgot Password?',
-          style: TextStyle(color: Colors.blue),
+          style: TextStyle(
+            color: Colors.blue,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     );
