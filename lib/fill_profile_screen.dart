@@ -165,18 +165,17 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Profile created successfully!'),
+              content: Text('Profile created successfully. Please login.'),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
             ),
           );
-
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => LoginScreen()),
-            );
-          }
+          // Clear temporary data
+          await prefs.remove('user_password'); // Remove temporary password
+          
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
         } else {
           // Handle errors
           if (mounted) {

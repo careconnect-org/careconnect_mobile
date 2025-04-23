@@ -23,11 +23,6 @@ class _LetsYouInScreenState extends State<LetsYouInScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeFirebase();
-  }
-
-  Future<void> _initializeFirebase() async {
-    await Firebase.initializeApp();
   }
 
   Future<void> _handleFacebookSignIn() async {
