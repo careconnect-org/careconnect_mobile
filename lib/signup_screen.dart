@@ -71,24 +71,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
             }));
 
         if (mounted) {
-          // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                  'Account created successfully! Please verify your email.'),
+              content: Text('Signup successful. Please verify your email.'),
               backgroundColor: Colors.green,
             ),
           );
+          // Save email for OTP verification
+          await prefs.setString('user_email', _emailController.text);
+          await prefs.setString('user_password', _passwordController.text);
 
-          print('Navigating to OTP verification screen');
-          // Navigate to OTP verification screen using pushAndRemoveUntil
-          Navigator.of(context).pushAndRemoveUntil(
+          // Using push instead of pushReplacement to maintain navigation history
+          Navigator.push(
+            context,
             MaterialPageRoute(
-              builder: (context) => OTPVerificationScreen(
-                email: _emailController.text,
-              ),
+              builder: (context) =>
+                  OTPVerificationScreen(email: _emailController.text),
             ),
-            (route) => false, // This will remove all previous routes
           );
         }
       } else {

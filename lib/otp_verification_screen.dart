@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'package:careconnect/fill_profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'patient_create_screen.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   final String email;
@@ -19,8 +21,8 @@ class OTPVerificationScreen extends StatefulWidget {
 
 class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   final List<TextEditingController> _controllers =
-      List.generate(6, (index) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
+      List.generate(7, (index) => TextEditingController());
+  final List<FocusNode> _focusNodes = List.generate(7, (index) => FocusNode());
   bool _isLoading = false;
   int _resendTimer = 60;
   Timer? _timer;
@@ -49,10 +51,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
   Future<void> _verifyOTP() async {
     String otp = _controllers.map((controller) => controller.text).join();
-    if (otp.length != 6) {
+    if (otp.length != 7) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a valid 6-digit OTP'),
+          content: Text('Please enter a valid 7-digit OTP'),
           backgroundColor: Colors.red,
         ),
       );
@@ -92,8 +94,13 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          // Navigate to the next screen (e.g., home screen)
-          Navigator.of(context).pushReplacementNamed('/home');
+          // Save verification status
+          await prefs.setBool('email_verified', true);
+          
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const FillProfileScreen()),
+          );
         }
       } else {
         throw Exception('Failed to verify OTP: ${response.body}');
@@ -106,7 +113,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
             backgroundColor: Colors.red,
           ),
         );
-      }
+      }  
     } finally {
       if (mounted) {
         setState(() {
@@ -213,7 +220,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Enter the 6-digit code sent to ${widget.email}',
+                  'Enter the 7-digit code sent to ${widget.email}',
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey[600],
@@ -223,7 +230,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: List.generate(
-                    6,
+                    7,
                     (index) => SizedBox(
                       width: 45,
                       child: TextField(
@@ -246,7 +253,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                           FilteringTextInputFormatter.digitsOnly,
                         ],
                         onChanged: (value) {
-                          if (value.isNotEmpty && index < 5) {
+                          if (value.isNotEmpty && index < 6) {
                             _focusNodes[index + 1].requestFocus();
                           }
                         },
