@@ -7,6 +7,7 @@ import 'package:careconnect/doctorscreen.dart';
 import 'HealthScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -16,11 +17,13 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? userData;
   bool _isLoading = true;
+  int notificationCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    loadNotificationCount();
   }
 
   Future<void> _loadUserData() async {
@@ -40,6 +43,36 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Error loading user data: $e');
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> loadNotificationCount() async {
+    final count = await fetchNotificationCount();
+    setState(() {
+      notificationCount = count;
+    });
+  }
+
+  Future<int> fetchNotificationCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    final userId = prefs.getString('user_id');
+    if (token == null || userId == null) return 0;
+
+    final response = await http.get(
+      Uri.parse('https://careconnect-api-v2kw.onrender.com/api/notify/get/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> notifications = json.decode(response.body);
+      // Count unseen notifications (assuming 'seen' is a boolean field)
+      return notifications.where((n) => n['seen'] == false).length;
+    }
+    return 0;
   }
 
   String _getGreeting() {
@@ -83,13 +116,41 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => NotificationScreen()),
-              );
-            },
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_none),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => NotificationScreen()),
+                  );
+                },
+              ),
+              if (notificationCount > 0)
+                Positioned(
+                  right: 11,
+                  top: 11,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      '$notificationCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
           IconButton(
             icon: const Icon(Icons.favorite_border),
@@ -136,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(height: 40), // Adjust to make space for image
+                      SizedBox(height: 40), 
                       Text(
                         'Medical Checks!',
                         style: TextStyle(
