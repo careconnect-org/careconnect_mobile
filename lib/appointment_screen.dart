@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppointmentScreen extends StatefulWidget {
   const AppointmentScreen({super.key});
@@ -11,54 +14,53 @@ class _MyAppointmentsScreenState extends State<AppointmentScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final List<Map<String, String>> upcomingAppointments = [
-    {
-      'doctor': 'Dr. Ken Kennedy',
-      'type': 'Voice Call',
-      'status': 'Upcoming',
-      'date': 'Apr 15, 2025',
-      'time': '10:00 AM'
-    },
-  ];
-
-  final List<Map<String, String>> completedAppointments = [
-    {
-      'doctor': 'Dr. Aidan Allende',
-      'type': 'Video Call',
-      'status': 'Completed',
-      'date': 'Dec 14, 2022',
-      'time': '15:00 PM'
-    },
-    {
-      'doctor': 'Dr. Iker Holl',
-      'type': 'Messaging',
-      'status': 'Completed',
-      'date': 'Nov 22, 2022',
-      'time': '09:00 AM'
-    },
-    {
-      'doctor': 'Dr. Jada Srnsky',
-      'type': 'Voice Call',
-      'status': 'Completed',
-      'date': 'Nov 06, 2022',
-      'time': '18:00 PM'
-    },
-  ];
-
-  final List<Map<String, String>> cancelledAppointments = [
-    {
-      'doctor': 'Dr. Iris Smith',
-      'type': 'Video Call',
-      'status': 'Cancelled',
-      'date': 'Apr 12, 2025',
-      'time': '13:00 PM'
-    },
-  ];
+  List<Map<String, dynamic>> upcomingAppointments = [];
+  List<Map<String, dynamic>> completedAppointments = [];
+  List<Map<String, dynamic>> cancelledAppointments = [];
+  bool isLoading = true;
 
   @override
   void initState() {
-    _tabController = TabController(length: 3, vsync: this);
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    fetchAppointments();
+  }
+
+  Future<void> fetchAppointments() async {
+    setState(() { isLoading = true; });
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    if (token == null) return;
+
+    final response = await http.get(
+      Uri.parse('https://careconnect-api-v2kw.onrender.com/api/appointment/all'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      upcomingAppointments = [];
+      completedAppointments = [];
+      cancelledAppointments = [];
+      for (var appt in data) {
+        switch (appt['status']) {
+          case 'Upcoming':
+            upcomingAppointments.add(appt);
+            break;
+          case 'Completed':
+            completedAppointments.add(appt);
+            break;
+          case 'Cancelled':
+            cancelledAppointments.add(appt);
+            break;
+        }
+      }
+    }
+    setState(() { isLoading = false; });
   }
 
   Icon _getTypeIcon(String type) {
@@ -74,8 +76,7 @@ class _MyAppointmentsScreenState extends State<AppointmentScreen>
     }
   }
 
-  Widget _buildAppointmentCard(Map<String, String> appointment,
-      {bool showActions = false}) {
+  Widget _buildAppointmentCard(Map<String, dynamic> appointment, {bool showActions = false}) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 4,
@@ -86,7 +87,7 @@ class _MyAppointmentsScreenState extends State<AppointmentScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              appointment['doctor']!,
+              appointment['doctor']!.toString(),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
@@ -95,9 +96,9 @@ class _MyAppointmentsScreenState extends State<AppointmentScreen>
             const SizedBox(height: 5),
             Row(
               children: [
-                _getTypeIcon(appointment['type']!),
+                _getTypeIcon(appointment['type']!.toString()),
                 const SizedBox(width: 6),
-                Text(appointment['type']!),
+                Text(appointment['type']!.toString()),
               ],
             ),
             const SizedBox(height: 10),
@@ -152,7 +153,9 @@ class _MyAppointmentsScreenState extends State<AppointmentScreen>
           ],
         ),
       ),
-      body: TabBarView(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
         controller: _tabController,
         children: [
           // Upcoming

@@ -1,5 +1,9 @@
 import 'chatdetailscreen.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MessageHistoryScreen extends StatefulWidget {
   const MessageHistoryScreen({Key? key}) : super(key: key);
@@ -11,70 +15,14 @@ class MessageHistoryScreen extends StatefulWidget {
 class _MessageHistoryScreenState extends State<MessageHistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  final List<Map<String, dynamic>> doctors = [
-    {
-      'name': "Dr. Drake Boeson",
-      'image': "assets/images/Doctor1.png",
-      'lastMessage': "My pleasure. All the best for ...",
-      'date': "Today",
-      'time': "10:00 AM",
-    },
-    {
-      'name': "Dr. Aidan Allende",
-      'image': "assets/images/Doctor2.png",
-      'lastMessage': "Your solution is great! 🔥🔥",
-      'date': "Yesterday",
-      'time': "18:00 PM",
-    },
-    {
-      'name': "Dr. Salvatore Heredia",
-      'image': "assets/images/Doctor3.png",
-      'lastMessage': "Thanks for the help doctor 🙏",
-      'date': "20/12/2022",
-      'time': "10:30 AM",
-    },
-    {
-      'name': "Dr. Delaney Mangino",
-      'image': "assets/images/Doctor4.png",
-      'lastMessage': "I have recovered, thank you v...",
-      'date': "14/12/2022",
-      'time': "17:00 PM",
-    },
-    {
-      'name': "Dr. Beckett Calger",
-      'image': "assets/images/Dr maria.png",
-      'lastMessage': "I went there yesterday 😊",
-      'date': "26/11/2022",
-      'time': "09:30 AM",
-    },
-    {
-      'name': "Dr. Bernard Bliss",
-      'image': "assets/images/Dr jenny.png",
-      'lastMessage': "IDK what else is there to do ...",
-      'date': "09/11/2022",
-      'time': "10:00 AM",
-    },
-    {
-      'name': "Dr. Jada Srnsky",
-      'image': "assets/images/Drake.png",
-      'lastMessage': "I advise you to take a break 🏖️",
-      'date': "18/10/2022",
-      'time': "15:30 PM",
-    },
-    {
-      'name': "Dr. Randy Wigham",
-      'image': "assets/images/Jenny.png",
-      'lastMessage': "Yeah! You're right. 🔥🔥",
-      'date': "07/10/2022",
-      'time': "16:00 PM",
-    },
-  ];
+  List<Map<String, dynamic>> chats = [];
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    loadChats();
   }
 
   @override
@@ -139,75 +87,33 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen>
   }
 
   Widget _buildMessageList() {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (chats.isEmpty) {
+      return const Center(child: Text('No chat history found.'));
+    }
     return ListView.builder(
-      itemCount: doctors.length,
+      itemCount: chats.length,
       itemBuilder: (context, index) {
-        final doctor = doctors[index];
-        return InkWell(
+        final chat = chats[index];
+        final doctor = chat['doctor']['user'];
+        final lastMessage = chat['lastMessage'];
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundImage: NetworkImage(doctor['image']),
+          ),
+          title: Text('${doctor['firstName']} ${doctor['lastName']}'),
+          subtitle: Text(lastMessage['text']),
+          trailing: Text(DateFormat('hh:mm a').format(DateTime.parse(lastMessage['createdAt']))),
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => ChatDetailScreen(doctor: doctor),
+                builder: (context) => ChatDetailScreen(doctor: chat['doctor']),
               ),
             );
           },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 25,
-                  backgroundImage: AssetImage(doctor['image']),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        doctor['name'],
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        doctor['lastMessage'],
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      doctor['date'],
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      doctor['time'],
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
         );
       },
     );
@@ -220,5 +126,34 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen>
         style: const TextStyle(fontSize: 18),
       ),
     );
+  }
+
+  Future<void> loadChats() async {
+    chats = await fetchUserChats();
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> fetchUserChats() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    final userId = prefs.getString('user_id');
+    if (token == null || userId == null) return [];
+
+    final response = await http.get(
+      Uri.parse('https://careconnect-api-v2kw.onrender.com/api/chat/user/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map<Map<String, dynamic>>((chat) => chat as Map<String, dynamic>).toList();
+    }
+    return [];
   }
 }
