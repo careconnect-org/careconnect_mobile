@@ -59,7 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (token == null || userId == null) return 0;
 
     final response = await http.get(
-      Uri.parse('https://careconnect-api-v2kw.onrender.com/api/notify/get/$userId'),
+      Uri.parse(
+          'https://careconnect-api-v2kw.onrender.com/api/notify/get/$userId'),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -122,7 +123,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: const Icon(Icons.notifications_none),
                 onPressed: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => NotificationScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => NotificationScreen()),
                   );
                 },
               ),
@@ -197,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(height: 40), 
+                      SizedBox(height: 40),
                       Text(
                         'Medical Checks!',
                         style: TextStyle(
