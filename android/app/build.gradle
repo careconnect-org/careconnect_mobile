@@ -6,7 +6,8 @@ plugins {
 }
 
 android {
-    namespace = "com.example.careconnect"
+    namespace "com.example.careconnect"  // Add the namespace
+    
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -28,6 +29,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled true  // Enable multidex support
     }
 
     buildTypes {
@@ -41,4 +43,10 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // ...existing code...
+    implementation 'androidx.multidex:multidex:2.0.1'  // Add multidex dependency
+    // ...existing code...
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:careconnect/admin/admin_bottom_screen.dart';
 import 'package:careconnect/bottom_Screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -69,25 +70,39 @@ class _LoginScreenState extends State<LoginScreen> {
           }
 
           // Save user data
+          String userRole = '';
           if (responseData['user'] != null) {
-            await prefs.setString('user_id', responseData['user']['_id']);
-            await prefs.setString('username', responseData['user']['username']);
-            await prefs.setString(
-                'first_name', responseData['user']['firstName']);
-            await prefs.setString(
-                'last_name', responseData['user']['lastName']);
-            await prefs.setString(
-                'user_image', responseData['user']['image'] ?? '');
-            await prefs.setString('user_role', responseData['user']['role']);
-            await prefs.setString(
-                'phone_number', responseData['user']['phoneNumber']);
-            await prefs.setString(
-                'date_of_birth', responseData['user']['dateOfBirth']);
-            await prefs.setString(
-                'user_gender', responseData['user']['gender']);
+            final user = responseData['user'];
 
-            await prefs.setString(
-                'user_data', jsonEncode(responseData['user']));
+            await prefs.setString('user_id', user['_id'] ?? '');
+            await prefs.setString('username', user['username'] ?? '');
+            await prefs.setString('first_name', user['firstName'] ?? '');
+            await prefs.setString('last_name', user['lastName'] ?? '');
+            await prefs.setString('user_image', user['image'] ?? '');
+
+            userRole = user['role'] ?? '';
+            await prefs.setString('user_role', userRole);
+
+            // Handle potentially missing or null fields
+            if (user['phoneNumber'] != null) {
+              await prefs.setString('phone_number', user['phoneNumber']);
+            } else {
+              await prefs.setString('phone_number', '');
+            }
+
+            if (user['dateOfBirth'] != null) {
+              await prefs.setString('date_of_birth', user['dateOfBirth']);
+            } else {
+              await prefs.setString('date_of_birth', '');
+            }
+
+            if (user['gender'] != null) {
+              await prefs.setString('user_gender', user['gender']);
+            } else {
+              await prefs.setString('user_gender', '');
+            }
+
+            await prefs.setString('user_data', jsonEncode(user));
           }
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -99,10 +114,18 @@ class _LoginScreenState extends State<LoginScreen> {
           );
 
           if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => BottomScreen()),
-            );
+            // Navigate based on user role
+            if (userRole.toLowerCase() == 'admin') {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => AdminBottomScreen()),
+              );
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => BottomScreen()),
+              );
+            }
           }
         } else {
           // Handle errors

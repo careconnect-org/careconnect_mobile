@@ -2,7 +2,6 @@ import 'package:careconnect/login-screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:http/http.dart' as http;
@@ -23,51 +22,6 @@ class _LetsYouInScreenState extends State<LetsYouInScreen> {
   @override
   void initState() {
     super.initState();
-  }
-
-  Future<void> _handleFacebookSignIn() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final LoginResult result = await FacebookAuth.instance.login();
-
-      if (result.status == LoginStatus.success) {
-        final AccessToken accessToken = result.accessToken!;
-        final userData = await FacebookAuth.instance.getUserData();
-
-        // Send data to your backend
-        final response = await http.post(
-          Uri.parse(
-              'https://careconnect-api-v2kw.onrender.com/api/user/social-login'),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'provider': 'facebook',
-            'accessToken': accessToken.token,
-            'email': userData['email'],
-            'name': userData['name'],
-          }),
-        );
-
-        if (response.statusCode == 200) {
-          _handleSuccessfulLogin(response.body);
-        } else {
-          throw Exception('Failed to login with Facebook');
-        }
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to sign in with Facebook';
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -207,13 +161,6 @@ class _LetsYouInScreenState extends State<LetsYouInScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  _buildSocialLoginButton(
-                    icon: Icons.facebook,
-                    iconColor: Colors.blue,
-                    text: 'Continue with Facebook',
-                    onPressed: _handleFacebookSignIn,
-                  ),
-                  const SizedBox(height: 15),
                   _buildSocialLoginButton(
                     icon: Icons.g_mobiledata,
                     iconColor: Colors.red,
