@@ -1,44 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-
-class SportRecommendation {
-  final String id;
-  final String title;
-  final String description;
-  final String imageUrl;
-  final String youtubeLink;
-  final String category;
-  final int duration;
-  final String difficulty;
-
-  SportRecommendation({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.imageUrl,
-    required this.youtubeLink,
-    required this.category,
-    required this.duration,
-    required this.difficulty,
-  });
-
-  factory SportRecommendation.fromJson(Map<String, dynamic> json) {
-    return SportRecommendation(
-      id: json['_id'] ?? '',
-      title: json['title'] ?? '',
-      description: json['description'] ?? '',
-      imageUrl: json['imageUrl'] ?? '',
-      youtubeLink: json['youtubeLink'] ?? '',
-      category: json['category'] ?? '',
-      duration: json['duration'] ?? 0,
-      difficulty: json['difficulty'] ?? 'Beginner',
-    );
-  }
-}
+import 'database_helper.dart';
+import 'models/sport_recommendation.dart';
 
 class SportsScreen extends StatefulWidget {
   const SportsScreen({super.key});
@@ -51,94 +16,111 @@ class _SportsScreenState extends State<SportsScreen> {
   List<SportRecommendation> _recommendations = [];
   bool _isLoading = true;
   String? _error;
-  String? _authToken;
+  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 
   @override
   void initState() {
     super.initState();
-    _loadAuthToken();
+    _loadRecommendations();
   }
 
-  Future<void> _loadAuthToken() async {
+  Future<void> _loadRecommendations() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _authToken = prefs.getString('auth_token');
-      if (_authToken == null) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      final recommendations = await _dbHelper.getAllSports();
+      
+      if (recommendations.isEmpty) {
+        // Add some sample data if the database is empty
+        await _addSampleData();
+        final updatedRecommendations = await _dbHelper.getAllSports();
         setState(() {
-          _error = 'Please login to view sports recommendations';
+          _recommendations = updatedRecommendations;
           _isLoading = false;
         });
-        return;
+      } else {
+        setState(() {
+          _recommendations = recommendations;
+          _isLoading = false;
+        });
       }
-      await _fetchRecommendations();
     } catch (e) {
-      print('Error loading auth token: $e');
       setState(() {
-        _error = 'Error loading authentication: ${e.toString()}';
+        _error = 'Error loading recommendations: ${e.toString()}';
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _fetchRecommendations() async {
+  Future<void> _addSampleData() async {
+    final sampleData = [
+      SportRecommendation(
+        id: '1',
+        title: 'Morning Yoga Flow',
+        description: 'A gentle yoga flow to start your day',
+        imageUrl: 'https://example.com/yoga.jpg',
+        youtubeLink: 'https://youtube.com/watch?v=example1',
+        category: 'Yoga',
+        duration: 30,
+        difficulty: 'Beginner',
+      ),
+      SportRecommendation(
+        id: '2',
+        title: 'Cardio Workout',
+        description: 'High-intensity cardio workout',
+        imageUrl: 'https://example.com/cardio.jpg',
+        youtubeLink: 'https://youtube.com/watch?v=example2',
+        category: 'Running',
+        duration: 45,
+        difficulty: 'Intermediate',
+      ),
+      // Add more sample data as needed
+    ];
+
+    for (var sport in sampleData) {
+      await _dbHelper.createSport(sport);
+    }
+  }
+
+  Future<void> _addNewSport(SportRecommendation sport) async {
     try {
-      print('Fetching recommendations from API...');
-      final response = await http.get(
-        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/sports/all'),
-        headers: {
-          'Authorization': 'Bearer $_authToken',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        try {
-          final List<dynamic> data = json.decode(response.body);
-          if (data.isEmpty) {
-            setState(() {
-              _error = 'No recommendations available';
-              _isLoading = false;
-            });
-            return;
-          }
-          setState(() {
-            _recommendations =
-                data.map((item) => SportRecommendation.fromJson(item)).toList();
-            _isLoading = false;
-          });
-        } catch (e) {
-          print('Error parsing JSON: $e');
-          setState(() {
-            _error = 'Error parsing data: ${e.toString()}';
-            _isLoading = false;
-          });
-        }
-      } else if (response.statusCode == 401) {
-        setState(() {
-          _error = 'Session expired. Please login again.';
-          _isLoading = false;
-        });
-      } else {
-        print('API Error: ${response.statusCode} - ${response.body}');
-        setState(() {
-          _error = 'Server error: ${response.statusCode}';
-          _isLoading = false;
-        });
-      }
-    } on TimeoutException {
-      print('Request timed out');
-      setState(() {
-        _error = 'Request timed out. Please check your internet connection.';
-        _isLoading = false;
-      });
+      await _dbHelper.createSport(sport);
+      await _loadRecommendations();
     } catch (e) {
-      print('Error fetching recommendations: $e');
-      setState(() {
-        _error = 'Failed to load recommendations: ${e.toString()}';
-        _isLoading = false;
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error adding sport: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _updateSport(SportRecommendation sport) async {
+    try {
+      await _dbHelper.updateSport(sport);
+      await _loadRecommendations();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating sport: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteSport(String id) async {
+    try {
+      await _dbHelper.deleteSport(id);
+      await _loadRecommendations();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting sport: ${e.toString()}')),
+        );
+      }
     }
   }
 
@@ -165,10 +147,14 @@ class _SportsScreenState extends State<SportsScreen> {
                 _isLoading = true;
                 _error = null;
               });
-              _loadAuthToken();
+              _loadRecommendations();
             },
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddEditSportDialog(),
+        child: const Icon(Icons.add),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -192,7 +178,7 @@ class _SportsScreenState extends State<SportsScreen> {
                             _isLoading = true;
                             _error = null;
                           });
-                          _loadAuthToken();
+                          _loadRecommendations();
                         },
                         child: const Text('Retry'),
                       ),
@@ -489,6 +475,91 @@ class _SportsScreenState extends State<SportsScreen> {
     }
   }
 
+  void _showAddEditSportDialog([SportRecommendation? sport]) {
+    final isEditing = sport != null;
+    final titleController = TextEditingController(text: sport?.title ?? '');
+    final descriptionController = TextEditingController(text: sport?.description ?? '');
+    final imageUrlController = TextEditingController(text: sport?.imageUrl ?? '');
+    final youtubeLinkController = TextEditingController(text: sport?.youtubeLink ?? '');
+    final categoryController = TextEditingController(text: sport?.category ?? '');
+    final durationController = TextEditingController(text: sport?.duration.toString() ?? '');
+    final difficultyController = TextEditingController(text: sport?.difficulty ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isEditing ? 'Edit Sport' : 'Add New Sport'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(labelText: 'Description'),
+              ),
+              TextField(
+                controller: imageUrlController,
+                decoration: const InputDecoration(labelText: 'Image URL'),
+              ),
+              TextField(
+                controller: youtubeLinkController,
+                decoration: const InputDecoration(labelText: 'YouTube Link'),
+              ),
+              TextField(
+                controller: categoryController,
+                decoration: const InputDecoration(labelText: 'Category'),
+              ),
+              TextField(
+                controller: durationController,
+                decoration: const InputDecoration(labelText: 'Duration (minutes)'),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: difficultyController,
+                decoration: const InputDecoration(labelText: 'Difficulty'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newSport = SportRecommendation(
+                id: sport?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                title: titleController.text,
+                description: descriptionController.text,
+                imageUrl: imageUrlController.text,
+                youtubeLink: youtubeLinkController.text,
+                category: categoryController.text,
+                duration: int.tryParse(durationController.text) ?? 0,
+                difficulty: difficultyController.text,
+              );
+
+              if (isEditing) {
+                await _updateSport(newSport);
+              } else {
+                await _addNewSport(newSport);
+              }
+
+              if (mounted) {
+                Navigator.pop(context);
+              }
+            },
+            child: Text(isEditing ? 'Update' : 'Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showCategoryDetails(String category) {
     final categoryRecommendations = _recommendations
         .where((r) => r.category.toLowerCase() == category.toLowerCase())
@@ -542,15 +613,55 @@ class _SportsScreenState extends State<SportsScreen> {
                     title: Text(recommendation.title),
                     subtitle: Text(
                         '${recommendation.duration} min • ${recommendation.difficulty}'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.play_circle_outline),
-                      onPressed: () async {
-                        final url = Uri.parse(recommendation.youtubeLink);
-                        if (await canLaunchUrl(url)) {
-                          await launchUrl(url,
-                              mode: LaunchMode.externalApplication);
-                        }
-                      },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _showAddEditSportDialog(recommendation);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Delete Sport'),
+                                content: Text(
+                                    'Are you sure you want to delete ${recommendation.title}?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () async {
+                                      await _deleteSport(recommendation.id);
+                                      if (mounted) {
+                                        Navigator.pop(context);
+                                      }
+                                    },
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.play_circle_outline),
+                          onPressed: () async {
+                            final url = Uri.parse(recommendation.youtubeLink);
+                            if (await canLaunchUrl(url)) {
+                              await launchUrl(url,
+                                  mode: LaunchMode.externalApplication);
+                            }
+                          },
+                        ),
+                      ],
                     ),
                   );
                 },
