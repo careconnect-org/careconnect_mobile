@@ -16,6 +16,15 @@ class FoodsScreen extends StatelessWidget {
           icon: Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.edit),
+            onPressed: () {
+              Navigator.pushNamed(context, '/food-crud');
+            },
+            tooltip: 'Manage Foods',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -150,28 +159,24 @@ class FoodsScreen extends StatelessWidget {
         'name': 'Breakfast',
         'time': '7:00 - 8:00 AM',
         'description': 'Oatmeal with berries and nuts',
-        'image': 'assets/images/breakfast.jpg',
         'calories': '320 kcal',
       },
       {
         'name': 'Lunch',
         'time': '12:00 - 1:00 PM',
         'description': 'Grilled chicken salad with vinaigrette',
-        'image': 'assets/images/lunch.jpg',
         'calories': '450 kcal',
       },
       {
         'name': 'Snack',
         'time': '3:30 - 4:00 PM',
         'description': 'Greek yogurt with honey and almonds',
-        'image': 'assets/images/snack.jpg',
         'calories': '180 kcal',
       },
       {
         'name': 'Dinner',
         'time': '7:00 - 8:00 PM',
         'description': 'Baked salmon with quinoa and vegetables',
-        'image': 'assets/images/dinner.jpg',
         'calories': '520 kcal',
       },
     ];
@@ -190,24 +195,20 @@ class FoodsScreen extends StatelessWidget {
           ),
           child: Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  bottomLeft: Radius.circular(12),
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
+                  ),
                 ),
-                child: Image.asset(
-                  meal['image'] as String,
-                  width: 100,
-                  height: 100,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 100,
-                      height: 100,
-                      color: Colors.grey[300],
-                      child: Icon(Icons.image, color: Colors.grey[600]),
-                    );
-                  },
+                child: Icon(
+                  Icons.restaurant,
+                  color: Colors.grey[600],
+                  size: 40,
                 ),
               ),
               Expanded(
@@ -276,12 +277,10 @@ class FoodsScreen extends StatelessWidget {
       {
         'name': 'Avocado Toast',
         'ingredients': ['Avocado', 'Whole wheat bread', 'Egg', 'Tomato'],
-        'image': 'assets/images/avocado_toast.jpg',
       },
       {
         'name': 'Quinoa Salad',
         'ingredients': ['Quinoa', 'Cucumber', 'Bell peppers', 'Feta cheese'],
-        'image': 'assets/images/quinoa_salad.jpg',
       },
       {
         'name': 'Smoothie Bowl',
@@ -292,7 +291,6 @@ class FoodsScreen extends StatelessWidget {
           'Granola',
           'Fruits'
         ],
-        'image': 'assets/images/smoothie_bowl.jpg',
       },
     ];
 
@@ -313,24 +311,21 @@ class FoodsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
+                Container(
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
                   ),
-                  child: Image.asset(
-                    recipe['image'] as String,
-                    height: 90,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 90,
-                        color: Colors.grey[300],
-                        child: Center(
-                            child: Icon(Icons.image, color: Colors.grey[600])),
-                      );
-                    },
+                  child: Center(
+                    child: Icon(
+                      Icons.restaurant_menu,
+                      color: Colors.grey[600],
+                      size: 40,
+                    ),
                   ),
                 ),
                 Padding(

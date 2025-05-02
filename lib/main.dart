@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'firebase_options.dart';
 import 'letsign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/sports_crud_screen.dart';
+import 'screens/food_crud_screen.dart';
 
 // Use the global navigator key from the NotificationService
 final GlobalKey<NavigatorState> navigatorKey = NotificationService.navigatorKey;
@@ -66,7 +68,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: navigatorKey, // Make sure this is set
+      navigatorKey: navigatorKey,
       title: 'Care Connect',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -76,6 +78,8 @@ class MyApp extends StatelessWidget {
       home: WelcomeScreen(),
       routes: {
         '/appointments': (context) => const AppointmentsNavigator(),
+        '/sports-crud': (context) => const SportsCrudScreen(),
+        '/food-crud': (context) => const FoodCrudScreen(),
       },
     );
   }
