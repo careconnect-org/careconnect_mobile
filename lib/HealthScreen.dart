@@ -1,6 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+import '../database/database_helper.dart';
+import '../models/health_recommendation.dart';
 
-class HealthScreen extends StatelessWidget {
+class HealthScreen extends StatefulWidget {
+  final String? patientId;
+
+  const HealthScreen({Key? key, this.patientId}) : super(key: key);
+
+  @override
+  _HealthScreenState createState() => _HealthScreenState();
+}
+
+class _HealthScreenState extends State<HealthScreen> {
+  List<HealthRecommendation> _recommendations = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecommendations();
+  }
+
+  Future<void> _loadRecommendations() async {
+    setState(() => _isLoading = true);
+    final db = DatabaseHelper.instance;
+    final List<Map<String, dynamic>> maps = await db.getRecommendations(widget.patientId);
+    setState(() {
+      _recommendations = maps.map((map) => HealthRecommendation.fromMap(map)).toList();
+      _isLoading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -17,47 +48,29 @@ class HealthScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHealthBanner(context),
-              SizedBox(height: 20),
-              Text(
-                'Daily Health Tips',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHealthBanner(context),
+                    SizedBox(height: 20),
+                    Text(
+                      'Your Health Recommendations',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    _buildRecommendationsList(context),
+                  ],
                 ),
               ),
-              SizedBox(height: 10),
-              _buildHealthTipsList(context),
-              SizedBox(height: 24),
-              Text(
-                'Recommended Checkups',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 10),
-              _buildCheckupsList(context),
-              SizedBox(height: 24),
-              Text(
-                'Health Articles',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 10),
-              _buildHealthArticles(context),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 
@@ -83,7 +96,7 @@ class HealthScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Your Health Score',
+                      'Your Health Status',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -91,7 +104,7 @@ class HealthScreen extends StatelessWidget {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      '85/100',
+                      '${_recommendations.length} Recommendations',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 28,
@@ -100,7 +113,7 @@ class HealthScreen extends StatelessWidget {
                     ),
                     SizedBox(height: 6),
                     Text(
-                      'Great! Keep up your healthy habits',
+                      'Follow your doctor\'s advice',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 14,
@@ -118,7 +131,7 @@ class HealthScreen extends StatelessWidget {
                 ),
                 child: Center(
                   child: Icon(
-                    Icons.favorite,
+                    Icons.medical_services,
                     color: Colors.white,
                     size: 36,
                   ),
@@ -126,244 +139,111 @@ class HealthScreen extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              // Navigate to health assessment
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.blue[700],
-              padding: EdgeInsets.symmetric(vertical: 12),
-              minimumSize: Size(double.infinity, 0),
-            ),
-            child: Text('Take Health Assessment'),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildHealthTipsList(BuildContext context) {
-    final tips = [
-      {
-        'icon': Icons.water_drop,
-        'title': 'Stay Hydrated',
-        'description': 'Drink at least 8 glasses of water daily',
-      },
-      {
-        'icon': Icons.nightlight,
-        'title': 'Sleep Well',
-        'description': 'Aim for 7-8 hours of quality sleep',
-      },
-      {
-        'icon': Icons.directions_walk,
-        'title': 'Regular Exercise',
-        'description': '30 minutes of moderate activity daily',
-      },
-      {
-        'icon': Icons.restaurant,
-        'title': 'Balanced Diet',
-        'description': 'Include fruits and vegetables in every meal',
-      },
-    ];
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      itemCount: tips.length,
-      itemBuilder: (context, index) {
-        final tip = tips[index];
-        return Card(
-          elevation: 2,
-          margin: EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: ListTile(
-            leading: Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                tip['icon'] as IconData,
-                color: Colors.blue[700],
-              ),
-            ),
-            title: Text(
-              tip['title'] as String,
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(tip['description'] as String),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCheckupsList(BuildContext context) {
-    final checkups = [
-      {
-        'name': 'Annual Physical',
-        'dueIn': 'Due in 2 months',
-        'icon': Icons.medical_services,
-      },
-      {
-        'name': 'Dental Checkup',
-        'dueIn': 'Overdue by 1 month',
-        'icon': Icons.settings_accessibility,
-        'urgent': true,
-      },
-      {
-        'name': 'Eye Examination',
-        'dueIn': 'Due in 5 months',
-        'icon': Icons.visibility,
-      },
-    ];
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      itemCount: checkups.length,
-      itemBuilder: (context, index) {
-        final checkup = checkups[index];
-        final bool isUrgent =
-            checkup.containsKey('urgent') && checkup['urgent'] == true;
-
-        return Card(
-          elevation: 2,
-          margin: EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: ListTile(
-            leading: Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isUrgent ? Colors.red[50] : Colors.blue[50],
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                checkup['icon'] as IconData,
-                color: isUrgent ? Colors.red : Colors.blue[700],
-              ),
-            ),
-            title: Text(
-              checkup['name'] as String,
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              checkup['dueIn'] as String,
+  Widget _buildRecommendationsList(BuildContext context) {
+    if (_recommendations.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.info_outline, size: 50, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'No recommendations yet',
               style: TextStyle(
-                color: isUrgent ? Colors.red : null,
+                fontSize: 16,
+                color: Colors.grey,
               ),
             ),
-            trailing: ElevatedButton(
-              onPressed: () {
-                // Navigate to appointment booking
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isUrgent ? Colors.red : Colors.blue,
-                foregroundColor: Colors.white,
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      itemCount: _recommendations.length,
+      itemBuilder: (context, index) {
+        final recommendation = _recommendations[index];
+        return Card(
+          elevation: 2,
+          margin: EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ListTile(
+            leading: Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: recommendation.isRead ? Colors.grey[200] : Colors.blue[50],
+                shape: BoxShape.circle,
               ),
-              child: Text('Schedule'),
+              child: Icon(
+                _getCategoryIcon(recommendation.category),
+                color: recommendation.isRead ? Colors.grey : Colors.blue[700],
+              ),
             ),
+            title: Text(
+              recommendation.title,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: recommendation.isRead ? Colors.grey : Colors.black,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(recommendation.description),
+                SizedBox(height: 4),
+                Text(
+                  'Category: ${recommendation.category}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                Text(
+                  'Date: ${recommendation.createdAt.toString().split(' ')[0]}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+            trailing: !recommendation.isRead
+                ? IconButton(
+                    icon: Icon(Icons.check_circle_outline),
+                    onPressed: () async {
+                      await DatabaseHelper.instance.markAsRead(recommendation.id!);
+                      _loadRecommendations();
+                    },
+                    color: Colors.blue,
+                  )
+                : null,
           ),
         );
       },
     );
   }
 
-  Widget _buildHealthArticles(BuildContext context) {
-    final articles = [
-      {
-        'title': 'The Benefits of Mediterranean Diet',
-        'image': 'assets/images/diet.jpg',
-        'readTime': '5 min read',
-      },
-      {
-        'title': 'How Stress Affects Your Body',
-        'image': 'assets/images/stress.jpg',
-        'readTime': '8 min read',
-      },
-      {
-        'title': 'Building a Strong Immune System',
-        'image': 'assets/images/immune.jpg',
-        'readTime': '6 min read',
-      },
-    ];
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      itemCount: articles.length,
-      itemBuilder: (context, index) {
-        final article = articles[index];
-        return Card(
-          clipBehavior: Clip.antiAlias,
-          margin: EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Image.asset(
-                  article['image'] as String,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[300],
-                      child:
-                          Icon(Icons.image, size: 50, color: Colors.grey[600]),
-                    );
-                  },
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      article['title'] as String,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(Icons.access_time, size: 14, color: Colors.grey),
-                        SizedBox(width: 4),
-                        Text(
-                          article['readTime'] as String,
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () {
-                        // Navigate to article
-                      },
-                      child: Text('Read Article'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'diet':
+        return Icons.restaurant;
+      case 'exercise':
+        return Icons.directions_run;
+      case 'medication':
+        return Icons.medical_services;
+      case 'lifestyle':
+        return Icons.self_improvement;
+      default:
+        return Icons.info;
+    }
   }
 }
