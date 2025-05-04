@@ -1,4 +1,5 @@
 import 'package:careconnect/admin/appointment_admin_screen.dart';
+import 'package:careconnect/admin/admin_health_recommendation_screen.dart';
 import 'package:careconnect/history_screen.dart';
 import 'package:careconnect/profile_screen.dart';
 import 'package:flutter/material.dart';
@@ -6,10 +7,10 @@ import 'package:flutter/material.dart';
 class AdminBottomScreen extends StatefulWidget {
   final int initialIndex;
 
-  const AdminBottomScreen(
-      {Key? key, this.initialIndex = 0 // Default to first tab
-      })
-      : super(key: key);
+  const AdminBottomScreen({
+    Key? key,
+    this.initialIndex = 0,
+  }) : super(key: key);
 
   @override
   State<AdminBottomScreen> createState() => _AdminBottomScreenState();
@@ -25,16 +26,18 @@ class _AdminBottomScreenState extends State<AdminBottomScreen> {
   }
 
   final List<Widget> _screens = [
-    // HomeScreen(),
     AppointmentadminScreen(),
+    AdminHealthRecommendationScreen(),
     MessageHistoryScreen(),
     ProfileScreen(),
   ];
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    if (index >= 0 && index < _screens.length) {
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
   }
 
   @override
@@ -44,13 +47,23 @@ class _AdminBottomScreenState extends State<AdminBottomScreen> {
       body: _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        items: [
-          // BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        items: const [
           BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today), label: 'Appointment'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+            icon: Icon(Icons.calendar_today),
+            label: 'Appointment',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline), label: 'Profile'),
+            icon: Icon(Icons.medical_services),
+            label: 'Recommendations',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'History',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            label: 'Profile',
+          ),
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
