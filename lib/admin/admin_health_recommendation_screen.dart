@@ -3,6 +3,7 @@ import '../database/database_helper.dart';
 import '../models/health_recommendation.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AdminHealthRecommendationScreen extends StatefulWidget {
   @override
@@ -42,16 +43,33 @@ class _AdminHealthRecommendationScreenState extends State<AdminHealthRecommendat
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      // Fetch patients from API
-      final patients = await PatientApiService(baseUrl: _apiBaseUrl).fetchAllPatients();
-      // Fetch recommendations from SQLite
-      final db = DatabaseHelper.instance;
-      final List<Map<String, dynamic>> recommendationMaps = await db.getRecommendations(null);
-      setState(() {
-        _patients = patients;
-        _recommendations = recommendationMaps.map((map) => HealthRecommendation.fromMap(map)).toList();
-        _isLoading = false;
-      });
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token'); // Use your actual key here
+      if (token == null) throw Exception('No auth token found');
+
+      final response = await http.get(
+        Uri.parse('$_apiBaseUrl/api/patient/all'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final patients = List<Map<String, dynamic>>.from(data['patients']);
+        // Fetch recommendations from SQLite
+        final db = DatabaseHelper.instance;
+        final List<Map<String, dynamic>> recommendationMaps = await db.getRecommendations(null);
+        setState(() {
+          _patients = patients;
+          _recommendations = recommendationMaps.map((map) => HealthRecommendation.fromMap(map)).toList();
+          _isLoading = false;
+        });
+      } else {
+        print('Failed to load patients: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        setState(() => _isLoading = false);
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,7 +93,7 @@ class _AdminHealthRecommendationScreenState extends State<AdminHealthRecommendat
         await DatabaseHelper.instance.updateRecommendation(updatedRecommendation.toMap());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Recommendation updated successfully')),
+            SnackBar(content: Text('Recommendation updated for ${_selectedPatient?['user']?['firstName'] ?? 'user'}')),
           );
         }
       } else {
@@ -90,7 +108,7 @@ class _AdminHealthRecommendationScreenState extends State<AdminHealthRecommendat
         await DatabaseHelper.instance.insertRecommendation(recommendation.toMap());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Recommendation added successfully')),
+            SnackBar(content: Text('Recommendation added for ${_selectedPatient?['user']?['firstName'] ?? 'user'}')),
           );
         }
       }
@@ -117,10 +135,15 @@ class _AdminHealthRecommendationScreenState extends State<AdminHealthRecommendat
       _titleController.text = recommendation.title;
       _descriptionController.text = recommendation.description;
       _selectedCategory = recommendation.category;
-      _selectedPatient = _patients.firstWhere(
-        (p) => p['_id'] == recommendation.patientId,
-        orElse: () => null,
-      );
+      
+      // Find the patient or set to null if not found
+      try {
+        _selectedPatient = _patients.firstWhere(
+          (p) => p['_id'] == recommendation.patientId,
+        );
+      } catch (e) {
+        _selectedPatient = null;
+      }
     });
   }
 
@@ -156,19 +179,65 @@ class _AdminHealthRecommendationScreenState extends State<AdminHealthRecommendat
         title: Text('Health Recommendations', style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.blue,
         iconTheme: IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: Icon(_showForm ? Icons.list : Icons.add),
-            onPressed: () => setState(() => _showForm = !_showForm),
-          ),
-        ],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
-          : _showForm
-              ? _buildForm()
-              : _buildRecommendationsList(),
+          : _buildPatientList(),
     );
+  }
+
+  Widget _buildPatientList() {
+    if (_patients.isEmpty) {
+      return Center(child: Text('No patients found'));
+    }
+    return ListView.builder(
+      itemCount: _patients.length,
+      itemBuilder: (context, index) {
+        final patient = _patients[index];
+        final user = patient['user'];
+        return Card(
+          child: ListTile(
+            leading: user != null && user['image'] != null
+                ? CircleAvatar(backgroundImage: NetworkImage(user['image']))
+                : const CircleAvatar(child: Icon(Icons.person)),
+            title: Text('${user?['firstName'] ?? ''} ${user?['lastName'] ?? ''}'),
+            subtitle: Text(user?['email'] ?? ''),
+            onTap: () => _showRecommendationFormForPatient(patient),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showRecommendationFormForPatient(Map<String, dynamic> patient) {
+    setState(() {
+      _selectedPatient = patient;
+      _showForm = true;
+      _isEditMode = false;
+      _editingRecommendationId = null;
+      _titleController.clear();
+      _descriptionController.clear();
+      _selectedCategory = 'diet';
+    });
+    // Show the form as a modal or navigate to a new page if you prefer
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 16,
+          right: 16,
+          top: 16,
+        ),
+        child: _buildForm(),
+      ),
+    ).whenComplete(() {
+      setState(() {
+        _showForm = false;
+        _selectedPatient = null;
+      });
+    });
   }
 
   Widget _buildForm() {
@@ -426,10 +495,15 @@ class PatientApiService {
   PatientApiService({required this.baseUrl});
 
   Future<List<Map<String, dynamic>>> fetchAllPatients() async {
-    final response = await http.get(Uri.parse('$baseUrl/api/patient/all'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/patient/all'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer YOUR_TOKEN', // <-- Make sure this is set!
+      },
+    );
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      // The patients are in data['patients']
       return List<Map<String, dynamic>>.from(data['patients']);
     } else {
       throw Exception('Failed to load patients');

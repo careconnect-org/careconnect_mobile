@@ -43,11 +43,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_API_KEY',
-    appId: 'YOUR_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
+    apiKey: 'AIzaSyBb1g1f1-Gb0FzbjANAZ7tSlsgG4dqamic',
+    appId: '1:727338192519:android:30f85baaaddb2e86f6f222',
+    messagingSenderId: '727338192519',
+    projectId: 'careconnect-cd6e2',
+    storageBucket: 'careconnect-cd6e2.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

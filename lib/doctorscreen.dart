@@ -66,16 +66,25 @@ class _DoctorsPageState extends State<DoctorsPage> {
           }
 
           setState(() {
-            doctors = doctorsData.map((doctor) => {
-              'name': '${doctor['user']['firstName']} ${doctor['user']['lastName']}',
-              'specialty': doctor['specialization'] ?? 'General Practitioner',
-              'rating': 4.0, 
-              'available': true, 
-              'workingHours': '${doctor['availableSlots']?[0]['from'] ?? '9:00 AM'} - ${doctor['availableSlots']?[0]['to'] ?? '5:00 PM'}',
-              'image': doctor['user']['image'] ?? 'https://i.pravatar.cc/150?img=1',
-              'hospital': doctor['hospital'] ?? 'Not specified',
-              'experience': doctor['yearsOfExperience'] ?? 0,
-              'licenseNumber': doctor['licenseNumber'] ?? '',
+            doctors = doctorsData.map((doctor) {
+              final user = doctor['user'];
+              final firstName = user != null ? user['firstName'] ?? '' : '';
+              final lastName = user != null ? user['lastName'] ?? '' : '';
+              final availableSlots = doctor['availableSlots'] as List?;
+              final firstSlot = availableSlots != null && availableSlots.isNotEmpty ? availableSlots[0] : null;
+              final from = firstSlot?['from'] ?? '9:00 AM';
+              final to = firstSlot?['to'] ?? '5:00 PM';
+              return {
+                'name': '$firstName $lastName',
+                'specialty': doctor['specialization'] ?? 'General Practitioner',
+                'rating': 4.0, 
+                'available': true, 
+                'workingHours': '$from - $to',
+                'image': user != null ? user['image'] ?? 'https://i.pravatar.cc/150?img=1' : 'https://i.pravatar.cc/150?img=1',
+                'hospital': doctor['hospital'] ?? 'Not specified',
+                'experience': doctor['yearsOfExperience'] ?? 0,
+                'licenseNumber': doctor['licenseNumber'] ?? '',
+              };
             }).toList();
             isLoading = false;
           });
@@ -192,77 +201,133 @@ class _DoctorsPageState extends State<DoctorsPage> {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 4,
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundImage: NetworkImage(doctor['image']),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        doctor['name'],
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                      Text(
-                        doctor['specialty'],
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      Text(
-                        doctor['hospital'],
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        '${doctor['experience']} years of experience',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        doctor['workingHours'],
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Row(
-                        children: [
-                          const Icon(Icons.star,
-                              color: Colors.orange, size: 16),
-                          Text("${doctor['rating']}"),
-                          const SizedBox(width: 10),
-                          Icon(
-                            Icons.circle,
-                            color: doctor['available'] ? Colors.green : Colors.red,
-                            size: 10,
+      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 5),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, Colors.blue.shade50],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Doctor's Image
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.blue, width: 2),
+                    ),
+                    child: CircleAvatar(
+                      radius: 35,
+                      backgroundImage: NetworkImage(doctor['image']),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Doctor's Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          doctor['name'],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                            color: Colors.blue,
                           ),
-                          Text(
-                            doctor['available'] ? " Online" : " Offline",
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            doctor['specialty'],
                             style: TextStyle(
-                              color: doctor['available']
-                                  ? Colors.green
-                                  : Colors.red,
-                              fontSize: 12,
+                              color: Colors.blue.shade800,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                        ],
-                      )
-                    ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildInfoRow(Icons.location_on, doctor['hospital']),
+                        const SizedBox(height: 4),
+                        _buildInfoRow(Icons.work, '${doctor['experience']} years experience'),
+                        const SizedBox(height: 4),
+                        _buildInfoRow(Icons.access_time, doctor['workingHours']),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.star, color: Colors.orange, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "${doctor['rating']}",
+                                    style: const TextStyle(
+                                      color: Colors.orange,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: doctor['available'] ? Colors.green.shade100 : Colors.red.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.circle,
+                                    color: doctor['available'] ? Colors.green : Colors.red,
+                                    size: 10,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    doctor['available'] ? "Online" : "Offline",
+                                    style: TextStyle(
+                                      color: doctor['available'] ? Colors.green : Colors.red,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+              // Chat Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -272,14 +337,43 @@ class _DoctorsPageState extends State<DoctorsPage> {
                     );
                   },
                   icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text("Chat"),
-                  style: TextButton.styleFrom(foregroundColor: Colors.teal),
+                  label: const Text(
+                    "Start Chat",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-              ],
-            )
-          ],
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  // Helper widget for info rows
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

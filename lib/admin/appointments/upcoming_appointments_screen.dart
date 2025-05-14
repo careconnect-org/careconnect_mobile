@@ -101,19 +101,33 @@ class _UpcomingAppointmentsScreenState
         for (var appt in upcomingAppointments) {
           if (appt['doctor'] != null) {
             String doctorName = '';
+            String specialization = '';
+            
             if (appt['doctor'] is Map) {
               // Handle nested doctor object
               var doctorObj = appt['doctor'];
-              if (doctorObj.containsKey('user')) {
-                doctorName = doctorObj['specialization'] ?? '';
+              if (doctorObj.containsKey('user') && doctorObj['user'] is Map) {
+                String firstName = doctorObj['user']['firstName'] ?? '';
+                String lastName = doctorObj['user']['lastName'] ?? '';
+                doctorName = '$firstName $lastName'.trim();
+              } else if (doctorObj.containsKey('user') && doctorObj['user'] is String) {
+                doctorName = doctorObj['user'];
+              }
+              
+              if (doctorObj.containsKey('specialization')) {
+                specialization = doctorObj['specialization'];
               }
             } else {
               // Handle simple string
               doctorName = appt['doctor'].toString();
             }
 
-            if (doctorName.isNotEmpty) {
-              doctors.add(doctorName);
+            if (doctorName.isNotEmpty && specialization.isNotEmpty) {
+              doctors.add('Dr. $doctorName - $specialization');
+            } else if (doctorName.isNotEmpty) {
+              doctors.add('Dr. $doctorName');
+            } else if (specialization.isNotEmpty) {
+              doctors.add('Dr. Unknown - $specialization');
             }
           }
         }
@@ -352,8 +366,28 @@ class _UpcomingAppointmentsScreenState
   String _getDoctorName(Map<String, dynamic> appointment) {
     if (appointment['doctor'] is Map) {
       var doctor = appointment['doctor'];
+      String doctorName = '';
+      String specialization = '';
+
+      // Get doctor's name from user object
+      if (doctor.containsKey('user') && doctor['user'] is Map) {
+        String firstName = doctor['user']['firstName'] ?? '';
+        String lastName = doctor['user']['lastName'] ?? '';
+        doctorName = '$firstName $lastName'.trim();
+      }
+
+      // Get specialization
       if (doctor.containsKey('specialization')) {
-        return doctor['specialization'] ?? 'Unknown Specialization';
+        specialization = doctor['specialization'];
+      }
+
+      // Return combined name and specialization
+      if (doctorName.isNotEmpty && specialization.isNotEmpty) {
+        return 'Dr. $doctorName - $specialization';
+      } else if (doctorName.isNotEmpty) {
+        return 'Dr. $doctorName';
+      } else if (specialization.isNotEmpty) {
+        return 'Dr. Unknown - $specialization';
       }
       return 'Unknown Doctor';
     }

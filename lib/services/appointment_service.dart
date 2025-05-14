@@ -1,5 +1,8 @@
 import 'package:careconnect/models/appointment.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'notification_service.dart';
 
@@ -7,6 +10,7 @@ class AppointmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final NotificationService _notificationService = NotificationService();
   final String appointmentsCollection = 'appointments';
+  static const String baseUrl = 'https://careconnect-api-v2kw.onrender.com/api';
 
   // Create a new appointment
   Future<void> createAppointment(Appointment appointment) async {
@@ -20,10 +24,8 @@ class AppointmentService {
           );
 
       // Send notification
-      await _notificationService.sendAppointmentCreatedNotification(
-        appointment.id,
-        appointment.patientName,
-        _formatDateTime(appointment.dateTime),
+      await _notificationService.sendNewAppointmentNotification(
+        appointment.toJson(),
       );
     } catch (e) {
       print('Error creating appointment: $e');
@@ -43,10 +45,9 @@ class AppointmentService {
           );
 
       // Send notification
-      await _notificationService.sendAppointmentUpdatedNotification(
-        appointment.id,
-        appointment.patientName,
-        _formatDateTime(appointment.dateTime),
+      await _notificationService.sendAppointmentStatusChangedNotification(
+        appointment.toJson(),
+        appointment.status,
       );
     } catch (e) {
       print('Error updating appointment: $e');
@@ -55,42 +56,49 @@ class AppointmentService {
   }
 
   // Update appointment status
-  Future<void> updateAppointmentStatus(
-      String appointmentId, String newStatus) async {
+  Future<Map<String, dynamic>> updateAppointmentStatus(String appointmentId, String newStatus) async {
     try {
-      // Get the appointment
-      DocumentSnapshot doc = await _firestore
-          .collection(appointmentsCollection)
-          .doc(appointmentId)
-          .get();
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
 
-      if (!doc.exists) {
-        throw Exception('Appointment not found');
+      if (token == null) {
+        throw Exception('Authentication token not found');
       }
 
-      Appointment appointment =
-          Appointment.fromJson(doc.data() as Map<String, dynamic>);
+      print('Updating appointment status: $appointmentId to $newStatus');
+      print('Using token: ${token.substring(0, 10)}...');
 
-      // Update status
-      Appointment updatedAppointment = appointment.copyWith(status: newStatus);
-
-      // Save to Firestore
-      await _firestore
-          .collection(appointmentsCollection)
-          .doc(appointmentId)
-          .update({
-        'status': newStatus,
-      });
-
-      // Send notification
-      await _notificationService.sendAppointmentStatusChangedNotification(
-        appointmentId,
-        appointment.patientName,
-        newStatus,
+      final response = await http.put(
+        Uri.parse('$baseUrl/appointment/status/$appointmentId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'status': newStatus,
+        }),
       );
+
+      print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final updatedAppointment = json.decode(response.body);
+        // Send notification about status change
+        await _notificationService.sendAppointmentStatusChangedNotification(
+          updatedAppointment,
+          newStatus,
+        );
+        return updatedAppointment;
+      } else {
+        final errorData = json.decode(response.body);
+        final errorMessage = errorData['message'] ?? 'Failed to update appointment status';
+        print('Error updating status: $errorMessage');
+        throw Exception(errorMessage);
+      }
     } catch (e) {
-      print('Error updating appointment status: $e');
-      rethrow;
+      print('Exception in updateAppointmentStatus: $e');
+      throw Exception('Error updating appointment status: $e');
     }
   }
 
@@ -117,9 +125,9 @@ class AppointmentService {
           .delete();
 
       // Send notification
-      await _notificationService.sendAppointmentDeletedNotification(
-        appointment.patientName,
-        _formatDateTime(appointment.dateTime),
+      await _notificationService.sendAppointmentStatusChangedNotification(
+        appointment.toJson(),
+        'Cancelled',
       );
     } catch (e) {
       print('Error deleting appointment: $e');
