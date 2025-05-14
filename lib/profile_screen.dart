@@ -7,6 +7,7 @@ import 'package:careconnect/security_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:careconnect/services/local_storage_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -27,58 +28,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<Map<String, dynamic>?> getUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userDataString = prefs.getString('user_data');
-    final authToken = prefs.getString('auth_token');
-
-    if (userDataString == null || authToken == null) {
-      return null;
-    }
-
     try {
-      // First get the basic user data
-      final userData = jsonDecode(userDataString) as Map<String, dynamic>;
+      // First try to get data from local storage
+      final localUserData = await LocalStorageService.getUserData();
+      final authToken = await LocalStorageService.getAuthToken();
 
-      // Then fetch the user profile including the image
-      final response = await http.get(
-        Uri.parse(
-            'https://careconnect-api-v2kw.onrender.com/api/user/profile/${userData['_id']}'),
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-      );
+      if (localUserData == null || authToken == null) {
+        return null;
+      }
 
-      print('Profile API Response Status: ${response.statusCode}');
-      print('Profile API Response Body: ${response.body}');
+      try {
+        // Then fetch the user profile including the image
+        final response = await http.get(
+          Uri.parse(
+              'https://careconnect-api-v2kw.onrender.com/api/user/profile/${localUserData['_id']}'),
+          headers: {
+            'Authorization': 'Bearer $authToken',
+            'Content-Type': 'application/json',
+          },
+        );
 
-      if (response.statusCode == 200) {
-        final profileData = jsonDecode(response.body);
-        print('Profile Data: $profileData');
+        print('Profile API Response Status: ${response.statusCode}');
+        print('Profile API Response Body: ${response.body}');
 
-        // Merge profile data with existing user data
-        userData.addAll(profileData);
-        // Update the stored user data with the new information
-        await prefs.setString('user_data', jsonEncode(userData));
-
-        // Extract profile image URL
-        final imageUrl = profileData['image'] as String?;
-        if (imageUrl != null && imageUrl.isNotEmpty) {
-          print('Profile Image URL: $imageUrl');
-          setState(() {
-            profileImageUrl = imageUrl;
-          });
-          return userData;
+        if (response.statusCode == 200) {
+          final profileData = jsonDecode(response.body);
+          print('Profile Data: $profileData');
+          
+          // Update local storage with fresh data
+          await LocalStorageService.saveAuthData(
+            token: authToken,
+            userData: profileData,
+          );
+          
+          return profileData;
         } else {
-          print('No profile image found in response');
-          return userData;
+          // If API call fails, return cached data
+          return localUserData;
         }
-      } else if (response.statusCode == 404) {
-        print('Profile not found, using basic user data');
-        return userData;
-      } else {
-        print('Failed to fetch profile data: ${response.statusCode}');
-        return userData; // Return existing data if fetch fails
+      } catch (e) {
+        print('Error fetching profile: $e');
+        // Return cached data if network request fails
+        return localUserData;
       }
     } catch (e) {
       print('Error getting user data: $e');
@@ -96,7 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (fetchedUserData != null) {
       setState(() {
         userData = fetchedUserData;
-        profileImageUrl = fetchedUserData['profileImage'] as String?;
+        profileImageUrl = fetchedUserData['image'] as String?;
         print('Setting profile image URL: $profileImageUrl');
         _isLoading = false;
       });
@@ -186,74 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: ElevatedButton(
                           onPressed: () async {
                             try {
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              final authToken = prefs.getString('auth_token');
-                              final userDataString =
-                                  prefs.getString('user_data');
-
-                              if (authToken == null || userDataString == null) {
-                                throw Exception('No authentication data found');
-                              }
-
-                              final userData = jsonDecode(userDataString)
-                                  as Map<String, dynamic>;
-                              final userId = userData['_id'];
-
-                              if (userId == null) {
-                                throw Exception('User ID not found');
-                              }
-
-                              print('Attempting logout with token: $authToken');
-                              print('User ID: $userId');
-
-                              final response = await http.post(
-                                Uri.parse(
-                                    'https://careconnect-api-v2kw.onrender.com/api/user/logout'),
-                                headers: {
-                                  'Authorization': 'Bearer $authToken',
-                                  'Content-Type': 'application/json',
-                                },
-                                body: jsonEncode({
-                                  'userId': userId,
-                                }),
-                              );
-
-                              print(
-                                  'Logout response status: ${response.statusCode}');
-                              print('Logout response body: ${response.body}');
-
-                              if (response.statusCode == 200) {
-                                // Clear all stored data
-                                await prefs.remove('user_data');
-                                await prefs.remove('auth_token');
-
-                                if (mounted) {
-                                  Navigator.pop(context);
-                                  Navigator.of(context).pushAndRemoveUntil(
-                                    MaterialPageRoute(
-                                        builder: (context) =>
-                                            const LoginScreen()),
-                                    (route) => false,
-                                  );
-                                }
-                              } else if (response.statusCode == 401) {
-                                // If token is invalid, clear data and redirect to login
-                                await prefs.remove('user_data');
-                                await prefs.remove('auth_token');
-                                if (mounted) {
-                                  Navigator.pop(context);
-                                  Navigator.of(context).pushAndRemoveUntil(
-                                    MaterialPageRoute(
-                                        builder: (context) =>
-                                            const LoginScreen()),
-                                    (route) => false,
-                                  );
-                                }
-                              } else {
-                                throw Exception(
-                                    'Failed to logout: ${response.statusCode} - ${response.body}');
-                              }
+                              await _logout();
                             } catch (e) {
                               print('Logout error: $e');
                               if (mounted) {
@@ -294,6 +218,66 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
+  }
+
+  Future<void> _logout() async {
+    try {
+      final authToken = await LocalStorageService.getAuthToken();
+      final userData = await LocalStorageService.getUserData();
+
+      if (authToken == null || userData == null) {
+        throw Exception('No authentication data found');
+      }
+
+      final userId = userData['_id'];
+
+      if (userId == null) {
+        throw Exception('User ID not found');
+      }
+
+      print('Attempting logout with token: $authToken');
+      print('User ID: $userId');
+
+      final response = await http.post(
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/user/logout'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'userId': userId,
+        }),
+      );
+
+      print('Logout response status: ${response.statusCode}');
+      print('Logout response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 401) {
+        // Clear all stored data
+        await LocalStorageService.clearAllData();
+
+        if (mounted) {
+          Navigator.pop(context);
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+      } else {
+        throw Exception('Failed to logout: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Error during logout: $e');
+      // Even if the API call fails, clear local data and redirect to login
+      await LocalStorageService.clearAllData();
+      if (mounted) {
+        Navigator.pop(context);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   @override

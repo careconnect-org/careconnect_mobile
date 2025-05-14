@@ -8,6 +8,9 @@ import 'letsign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/sports_crud_screen.dart';
 import 'screens/food_crud_screen.dart';
+import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 
 // Use the global navigator key from the NotificationService
 final GlobalKey<NavigatorState> navigatorKey = NotificationService.navigatorKey;
@@ -15,30 +18,46 @@ final GlobalKey<NavigatorState> navigatorKey = NotificationService.navigatorKey;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase with a timeout before showing the app
+  // Initialize Firebase with proper error handling
   try {
+    print('Initializing Firebase...');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
-    ).timeout(const Duration(seconds: 3));
+    );
+    print('Firebase initialized successfully');
   } catch (e) {
-    print('Firebase initialization issue: $e');
-    // Continue without Firebase
+    print('Firebase initialization failed: $e');
+    // Show error dialog or handle the error appropriately
   }
 
-  // Start the app immediately
+  // Start the app
   runApp(const MyApp());
 
-  // Perform additional non-critical initialization after the app has launched
+  // Perform additional initialization
   _completeInitialization();
 }
 
 Future<void> _completeInitialization() async {
   try {
-    // Initialize notification service
-    await NotificationService().initialize();
+    print('Starting additional initialization...');
+    
+    // Check if Firebase is initialized
+    if (Firebase.apps.isEmpty) {
+      print('Firebase not initialized, attempting to initialize...');
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
 
-    // Non-blocking user role check
-    _checkUserRoleAndSubscribe();
+    // Initialize notification service
+    print('Initializing notification service...');
+    await NotificationService().initialize();
+    print('Notification service initialized');
+
+    // Check user role and subscribe to topics
+    print('Checking user role...');
+    await _checkUserRoleAndSubscribe();
+    print('User role check completed');
   } catch (e) {
     print('Error during additional initialization: $e');
   }
@@ -111,6 +130,68 @@ class AppointmentsNavigator extends StatelessWidget {
           child: const Text('Check for Saved Appointment'),
         ),
       ),
+    );
+  }
+}
+
+types.TextMessage messageFromFirestore(Map<String, dynamic> doc) {
+  return types.TextMessage(
+    id: doc['id'],
+    author: types.User(id: doc['authorId']),
+    createdAt: doc['createdAt'],
+    text: doc['text'],
+  );
+}
+
+Stream<List<types.TextMessage>> getMessagesStream(String chatRoomId) {
+  return FirebaseFirestore.instance
+      .collection('chatRooms')
+      .doc(chatRoomId)
+      .collection('messages')
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((snapshot) => snapshot.docs
+          .map((doc) => messageFromFirestore(doc.data()))
+          .toList());
+}
+
+Future<void> sendMessage(String chatRoomId, types.PartialText message, String userId) async {
+  final docRef = FirebaseFirestore.instance
+      .collection('chatRooms')
+      .doc(chatRoomId)
+      .collection('messages')
+      .doc();
+
+  await docRef.set({
+    'id': docRef.id,
+    'authorId': userId,
+    'createdAt': DateTime.now().millisecondsSinceEpoch,
+    'text': message.text,
+  });
+}
+
+class ChatScreen extends StatelessWidget {
+  final String chatRoomId;
+  final types.User currentUser;
+
+  const ChatScreen({
+    Key? key,
+    required this.chatRoomId,
+    required this.currentUser,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<types.TextMessage>>(
+      stream: getMessagesStream(chatRoomId),
+      builder: (context, snapshot) {
+        final messages = snapshot.data ?? [];
+        return Chat(
+          messages: messages,
+          onSendPressed: (partial) => sendMessage(chatRoomId, partial, currentUser.id),
+          user: currentUser,
+        );
+      },
     );
   }
 }

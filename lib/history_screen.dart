@@ -1,9 +1,10 @@
 import 'chatdetailscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import './available_doctors_screen.dart';
 
 class MessageHistoryScreen extends StatefulWidget {
   const MessageHistoryScreen({Key? key}) : super(key: key);
@@ -17,6 +18,8 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen>
   late TabController _tabController;
   List<Map<String, dynamic>> chats = [];
   bool isLoading = true;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   void initState() {
@@ -35,7 +38,8 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(automaticallyImplyLeading: false,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
         backgroundColor: Colors.blue,
@@ -91,26 +95,79 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen>
       return const Center(child: CircularProgressIndicator());
     }
     if (chats.isEmpty) {
-      return const Center(child: Text('No chat history found.'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.chat_bubble, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              "No active chats yet",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "Start a conversation with a doctor",
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AvailableDoctorsScreen(),
+                  ),
+                );
+              },
+              child: const Text("Start New Chat"),
+            ),
+          ],
+        ),
+      );
     }
     return ListView.builder(
       itemCount: chats.length,
       itemBuilder: (context, index) {
         final chat = chats[index];
-        final doctor = chat['doctor']['user'];
-        final lastMessage = chat['lastMessage'];
+        final lastMessage = chat['lastMessage'] as String? ?? '';
+        final lastMessageTime = chat['lastMessageTime'] as Timestamp?;
+        final otherUser = chat['otherUser'] as Map<String, dynamic>;
+
         return ListTile(
           leading: CircleAvatar(
-            backgroundImage: NetworkImage(doctor['image']),
+            backgroundImage: otherUser['image'] != null
+                ? NetworkImage(otherUser['image'])
+                : null,
+            child: otherUser['image'] == null
+                ? const Icon(Icons.person)
+                : null,
           ),
-          title: Text('${doctor['firstName']} ${doctor['lastName']}'),
-          subtitle: Text(lastMessage['text']),
-          trailing: Text(DateFormat('hh:mm a').format(DateTime.parse(lastMessage['createdAt']))),
+          title: Text(otherUser['name'] ?? 'Unknown User'),
+          subtitle: Text(
+            lastMessage,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Text(
+            lastMessageTime != null
+                ? DateFormat('MMM d, h:mm a').format(lastMessageTime.toDate())
+                : '',
+            style: const TextStyle(fontSize: 12),
+          ),
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => ChatDetailScreen(doctor: chat['doctor']),
+                builder: (context) => ChatDetailScreen(
+                  doctor: {
+                    'id': otherUser['id'],
+                    'name': otherUser['name'],
+                    'image': otherUser['image'],
+                  },
+                ),
               ),
             );
           },
@@ -129,31 +186,53 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen>
   }
 
   Future<void> loadChats() async {
-    chats = await fetchUserChats();
-    setState(() {
-      isLoading = false;
-    });
-  }
-
-  Future<List<Map<String, dynamic>>> fetchUserChats() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
-    final userId = prefs.getString('user_id');
-    if (token == null || userId == null) return [];
-
-    final response = await http.get(
-      Uri.parse('https://careconnect-api-v2kw.onrender.com/api/chat/user/$userId'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map<Map<String, dynamic>>((chat) => chat as Map<String, dynamic>).toList();
+    final user = _auth.currentUser;
+    if (user == null) {
+      setState(() {
+        isLoading = false;
+      });
+      return;
     }
-    return [];
+
+    try {
+      final chatRoomsSnapshot = await _firestore
+          .collection('chatRooms')
+          .where('participants', arrayContains: user.uid)
+          .orderBy('lastMessageTime', descending: true)
+          .get();
+
+      final List<Map<String, dynamic>> chatList = [];
+      
+      for (var doc in chatRoomsSnapshot.docs) {
+        final data = doc.data();
+        final participants = List<String>.from(data['participants']);
+        final otherUserId = participants.firstWhere((id) => id != user.uid);
+        
+        // Fetch other user's details
+        final userDoc = await _firestore.collection('users').doc(otherUserId).get();
+        final userData = userDoc.data() ?? {};
+        
+        chatList.add({
+          'id': doc.id,
+          'lastMessage': data['lastMessage'],
+          'lastMessageTime': data['lastMessageTime'],
+          'otherUser': {
+            'id': otherUserId,
+            'name': userData['name'] ?? 'Unknown User',
+            'image': userData['image'],
+          },
+        });
+      }
+
+      setState(() {
+        chats = chatList;
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading chats: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 }

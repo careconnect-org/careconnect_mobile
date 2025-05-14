@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'createaccount_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:careconnect/forgot_password_screen.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -28,6 +29,37 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<bool> _updateUserRole(String userId, String token) async {
+    try {
+      print('Attempting to update user role for user: $userId');
+      final response = await http.put(
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/user/update/$userId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'role': 'doctor',
+          'updateType': 'role'
+        }),
+      );
+
+      print('Role update response status: ${response.statusCode}');
+      print('Role update response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        print('User role updated successfully to doctor');
+        return true;
+      } else {
+        print('Failed to update user role: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error updating user role: $e');
+      return false;
+    }
   }
 
   Future<void> _login() async {
@@ -61,48 +93,12 @@ class _LoginScreenState extends State<LoginScreen> {
         print("Response from login API: $responseData");
 
         if (response.statusCode == 200 || response.statusCode == 201) {
-          // Save data to SharedPreferences
-          final prefs = await SharedPreferences.getInstance();
-
-          // Save token
-          if (responseData['token'] != null) {
-            await prefs.setString('auth_token', responseData['token']);
-          }
-
-          // Save user data
-          String userRole = '';
-          if (responseData['user'] != null) {
-            final user = responseData['user'];
-
-            await prefs.setString('user_id', user['_id'] ?? '');
-            await prefs.setString('username', user['username'] ?? '');
-            await prefs.setString('first_name', user['firstName'] ?? '');
-            await prefs.setString('last_name', user['lastName'] ?? '');
-            await prefs.setString('user_image', user['image'] ?? '');
-
-            userRole = user['role'] ?? '';
-            await prefs.setString('user_role', userRole);
-
-            // Handle potentially missing or null fields
-            if (user['phoneNumber'] != null) {
-              await prefs.setString('phone_number', user['phoneNumber']);
-            } else {
-              await prefs.setString('phone_number', '');
-            }
-
-            if (user['dateOfBirth'] != null) {
-              await prefs.setString('date_of_birth', user['dateOfBirth']);
-            } else {
-              await prefs.setString('date_of_birth', '');
-            }
-
-            if (user['gender'] != null) {
-              await prefs.setString('user_gender', user['gender']);
-            } else {
-              await prefs.setString('user_gender', '');
-            }
-
-            await prefs.setString('user_data', jsonEncode(user));
+          // Save data using LocalStorageService
+          if (responseData['token'] != null && responseData['user'] != null) {
+            await LocalStorageService.saveAuthData(
+              token: responseData['token'],
+              userData: responseData['user'],
+            );
           }
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -114,13 +110,19 @@ class _LoginScreenState extends State<LoginScreen> {
           );
 
           if (mounted) {
+            // Get user role from storage
+            final userRole = await LocalStorageService.getUserRole() ?? '';
+            print('User role from storage: $userRole');
+            
             // Navigate based on user role
-            if (userRole.toLowerCase() == 'admin') {
+            if (userRole.toLowerCase() == 'admin' || userRole.toLowerCase() == 'doctor') {
+              print('Navigating to admin/doctor dashboard');
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => AdminBottomScreen()),
               );
             } else {
+              print('Navigating to patient dashboard');
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => BottomScreen()),

@@ -45,7 +45,7 @@ class _AppointmentadminScreenState extends State<AppointmentadminScreen>
           controller: _tabController,
           tabs: const [
             Tab(text: "Upcoming"),
-            Tab(text: "Complethhhed"),
+            Tab(text: "Completed"),
             Tab(text: "Cancelled"),
           ],
         ),

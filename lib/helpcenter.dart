@@ -67,27 +67,23 @@ class _HelpCenterScreenState extends State<HelpCenterScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),  
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Help Center',
-          style: TextStyle(color: Colors.black, fontSize: 18),
+          style: TextStyle(color: Colors.white, fontSize: 18),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_horiz, color: Colors.black),
-            onPressed: () {},
-          ),
-        ],
+      
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.blue,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: Colors.blue,
+          labelColor:  Colors.white,
+          unselectedLabelColor: const Color.fromARGB(255, 186, 184, 184),        
+          indicatorColor: const Color.fromARGB(255, 190, 189, 189),
           tabs: const [
             Tab(text: 'FAQ'),
             Tab(text: 'Contact us'),
