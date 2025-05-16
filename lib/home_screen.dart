@@ -8,6 +8,7 @@ import 'HealthScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'screens/chat_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -155,6 +156,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           IconButton(
+            icon: const Icon(Icons.message_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ChatListScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.favorite_border),
             onPressed: () {
               Navigator.of(context).push(
@@ -165,185 +176,227 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Search Bar
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Search',
-                prefixIcon: Icon(Icons.search),
-                suffixIcon: Icon(Icons.filter_list),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.grey[200],
-              ),
-            ),
-            SizedBox(height: 16),
-
-            // Medical Checks Banner
-            Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(15),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Search Bar
+              Container(
+                height: 60,
+                child: DropdownButtonFormField<String>(
+                  decoration: InputDecoration(
+                    hintText: 'Search by specialty',
+                    prefixIcon: Icon(Icons.search),
+                    suffixIcon: Icon(Icons.filter_list),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey[200],
                   ),
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(height: 40),
-                      Text(
-                        'Medical Checks!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Check your health condition regularly to minimize the incidence of disease in the future',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                        maxLines: 2,
+                  isExpanded: true,
+                  menuMaxHeight: 300,
+                  items: [
+                    'All Specialties',
+                    'General Practitioner',
+                    'Cardiologist',
+                    'Ophthalmologist',
+                    'Nutritionist',
+                    'Neurologist',
+                    'Pediatrician',
+                    'Radiologist',
+                    'Dermatologist',
+                    'Orthopedist',
+                    'Gynecologist',
+                    'ENT Specialist',
+                    'Psychiatrist',
+                    'Dentist',
+                  ].map((String specialty) {
+                    return DropdownMenuItem<String>(
+                      value: specialty,
+                      child: Text(
+                        specialty,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => HealthScreen(),
-                            ),
-                          );
-                        },
-                        child: Text('Check Now'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.blue,
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      // Navigate to doctors page with selected specialty
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DoctorsPage(selectedSpecialty: newValue),
                         ),
-                      ),
-                    ],
-                  ),
+                      );
+                    }
+                  },
                 ),
-                Positioned(
-                  top: 10, // Adjust to place the image slightly above
-                  right: 0, // Adjust as needed
-                  child: Opacity(
-                    opacity: 0.3, // Adjust transparency level
-                    child: Image.asset(
-                      'assets/images/avatar.png',
-                      width: 120,
-                      height: 200,
-                      fit: BoxFit.contain,
+              ),
+              SizedBox(height: 16),
+
+              // Medical Checks Banner
+              Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(height: 40),
+                        Text(
+                          'Medical Checks!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Check your health condition regularly to minimize the incidence of disease in the future',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => HealthScreen(),
+                              ),
+                            );
+                          },
+                          child: Text('Check Now'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.blue,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            SizedBox(height: 16),
-
-            // Doctor Specialty Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Doctor Specialty',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DoctorsPage(),
+                  Positioned(
+                    top: 10, // Adjust to place the image slightly above
+                    right: 0, // Adjust as needed
+                    child: Opacity(
+                      opacity: 0.3, // Adjust transparency level
+                      child: Image.asset(
+                        'assets/images/avatar.png',
+                        width: 120,
+                        height: 200,
+                        fit: BoxFit.contain,
                       ),
-                    );
-                  },
-                  child: Text('See All'),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                int crossAxisCount =
-                    (constraints.maxWidth ~/ 80).clamp(2, 4); // responsive
-                return GridView.count(
-                  crossAxisCount: crossAxisCount,
-                  shrinkWrap: true,
-                  physics: NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 1,
-                  children: [
-                    _buildSpecialtyIcon(Icons.medical_services, 'General'),
-                    _buildSpecialtyIcon(Icons.airline_seat_flat, 'Cardiolo..'),
-                    _buildSpecialtyIcon(Icons.remove_red_eye, 'Ophthal..'),
-                    _buildSpecialtyIcon(Icons.restaurant, 'Nutritio..'),
-                    _buildSpecialtyIcon(Icons.psychology, 'Neurolo..'),
-                    _buildSpecialtyIcon(Icons.child_friendly, 'Pediatr..'),
-                    _buildSpecialtyIcon(Icons.radio, 'Radiolo..'),
-                  ],
-                );
-              },
-            ),
-
-// Add spacing before categories
-            SizedBox(height: 24),
-
-            // Top Doctors Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Categories',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                int crossAxisCount =
-                    (constraints.maxWidth ~/ 100).clamp(2, 4); // responsive
-                return GridView.count(
-                  crossAxisCount: crossAxisCount,
-                  shrinkWrap: true,
-                  physics: NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 2.5,
-                  children: [
-                    _buildCategoryButton(context, 'Foods', FoodsScreen(),
-                        emoji: '🥦'),
-                    _buildCategoryButton(context, 'Sports', SportsScreen(),
-                        emoji: '🏃‍♂️'),
-                    _buildCategoryButton(context, 'Health', HealthScreen(),
-                        emoji: '💊'),
-                  ],
-                );
-              },
-            ),
-          ],
+                ],
+              ),
+
+              SizedBox(height: 16),
+
+              // Doctor Specialty Section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Doctor Specialty',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DoctorsPage(),
+                        ),
+                      );
+                    },
+                    child: Text('See All'),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  int crossAxisCount =
+                      (constraints.maxWidth ~/ 80).clamp(2, 4); // responsive
+                  return GridView.count(
+                    crossAxisCount: crossAxisCount,
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 1,
+                    children: [
+                      _buildSpecialtyIcon(Icons.medical_services, 'General'),
+                      _buildSpecialtyIcon(Icons.airline_seat_flat, 'Cardiolo..'),
+                      _buildSpecialtyIcon(Icons.remove_red_eye, 'Ophthal..'),
+                      _buildSpecialtyIcon(Icons.restaurant, 'Nutritio..'),
+                      _buildSpecialtyIcon(Icons.psychology, 'Neurolo..'),
+                      _buildSpecialtyIcon(Icons.child_friendly, 'Pediatr..'),
+                      _buildSpecialtyIcon(Icons.radio, 'Radiolo..'),
+                    ],
+                  );
+                },
+              ),
+
+  // Add spacing before categories
+              SizedBox(height: 24),
+
+              // Top Doctors Section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Categories',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  int crossAxisCount =
+                      (constraints.maxWidth ~/ 100).clamp(2, 4); // responsive
+                  return GridView.count(
+                    crossAxisCount: crossAxisCount,
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 2.5,
+                    children: [
+                      _buildCategoryButton(context, 'Foods', FoodsScreen(),
+                          emoji: '🥦'),
+                      _buildCategoryButton(context, 'Sports', SportsScreen(),
+                          emoji: '🏃‍♂️'),
+                      _buildCategoryButton(context, 'Health', HealthScreen(),
+                          emoji: '💊'),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../chatdetailscreen.dart';
+import '../screens/chat_screen.dart';
 
 class AdminChatListScreen extends StatefulWidget {
   const AdminChatListScreen({Key? key}) : super(key: key);
@@ -131,12 +131,9 @@ class _AdminChatListScreenState extends State<AdminChatListScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => ChatDetailScreen(
-                                      doctor: {
-                                        'id': user['id'],
-                                        'name': user['name'],
-                                        'image': user['image'],
-                                      },
+                                    builder: (context) => ChatScreen(
+                                      otherUserId: user['id'],
+                                      otherUserName: user['name'] ?? 'Unknown User',
                                     ),
                                   ),
                                 );

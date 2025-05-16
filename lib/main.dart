@@ -11,25 +11,18 @@ import 'screens/food_crud_screen.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
+import 'services/auth_service.dart';
 
 // Use the global navigator key from the NotificationService
 final GlobalKey<NavigatorState> navigatorKey = NotificationService.navigatorKey;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Firebase with proper error handling
-  try {
-    print('Initializing Firebase...');
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    print('Firebase initialized successfully');
-  } catch (e) {
-    print('Firebase initialization failed: $e');
-    // Show error dialog or handle the error appropriately
-  }
-
+  await Firebase.initializeApp();
+  
+  // Store existing token if user is logged in
+  await AuthService().storeExistingToken();
+  
   // Start the app
   runApp(const MyApp());
 
