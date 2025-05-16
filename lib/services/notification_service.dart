@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../admin/appointment_admin_screen.dart'; // Add this import
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -16,6 +18,8 @@ class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Channel IDs
   static const String _appointmentChannelId = 'appointment_channel';
@@ -45,19 +49,61 @@ class NotificationService {
       // Initialize local notifications
       await _initializeLocalNotifications();
 
-      // Get FCM token
-      String? token = await _firebaseMessaging.getToken();
-      if (token != null) {
-        print('FCM Token: $token');
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('fcm_token', token);
-      }
+      // Handle incoming messages when app is in foreground
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        _showNotification(
+          title: message.notification?.title ?? 'New Message',
+          body: message.notification?.body ?? '',
+        );
+      });
+
+      // Get FCM token and save it
+      await _saveTokenToFirestore();
 
       // Subscribe to general appointment notifications
       await _firebaseMessaging.subscribeToTopic('appointments');
       print('Subscribed to appointment notifications');
+
+      // Listen for token refresh
+      _firebaseMessaging.onTokenRefresh.listen((token) async {
+        await _saveTokenToFirestore(token: token);
+      });
+
+      // Handle notification tap when app is in background
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
     } catch (e) {
       print('Error initializing notification service: $e');
+    }
+  }
+
+  Future<void> _saveTokenToFirestore({String? token}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        print('Cannot save token: No user logged in');
+        return;
+      }
+
+      // Get the token if not provided
+      final fcmToken = token ?? await _firebaseMessaging.getToken();
+      if (fcmToken == null) {
+        print('Failed to get FCM token');
+        return;
+      }
+
+      // Save token to Firestore
+      await _firestore.collection('users').doc(user.uid).set({
+        'fcmToken': fcmToken,
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'deviceInfo': {
+          'platform': Theme.of(navigatorKey.currentContext!).platform.toString(),
+          'lastActive': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+
+      print('FCM Token saved successfully: $fcmToken');
+    } catch (e) {
+      print('Error saving FCM token: $e');
     }
   }
 
@@ -598,6 +644,117 @@ class NotificationService {
       print('Test patient notification process completed');
     } catch (e) {
       print('Error sending test notification to patient: $e');
+    }
+  }
+
+  // Get FCM token for a user
+  Future<String?> getFCMToken(String userId) async {
+    try {
+      DocumentSnapshot doc = await _firestore.collection('users').doc(userId).get();
+      return doc.get('fcmToken') as String?;
+    } catch (e) {
+      print('Error getting FCM token: $e');
+      return null;
+    }
+  }
+
+  // Update user's last active timestamp
+  Future<void> updateLastActive() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      await _firestore.collection('users').doc(user.uid).update({
+        'deviceInfo.lastActive': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error updating last active: $e');
+    }
+  }
+
+  // Remove FCM token when user logs out
+  Future<void> removeToken() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      await _firestore.collection('users').doc(user.uid).update({
+        'fcmToken': FieldValue.delete(),
+        'deviceInfo.lastActive': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error removing FCM token: $e');
+    }
+  }
+
+  // Show a local notification
+  Future<void> _showNotification({
+    required String title,
+    required String body,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'chat_messages',
+      'Chat Messages',
+      channelDescription: 'Notifications for new chat messages',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await flutterLocalNotificationsPlugin.show(
+      DateTime.now().millisecond,
+      title,
+      body,
+      notificationDetails,
+    );
+  }
+
+  Future<void> _handleBackgroundMessage(RemoteMessage message) async {
+    print('Handling background message: ${message.messageId}');
+    if (message.data['type'] == 'message') {
+      // Navigate to chat screen
+      navigatorKey.currentState?.pushNamed(
+        '/chat',
+        arguments: {
+          'channelId': message.data['channelId'],
+          'otherUserId': message.data['senderId'],
+        },
+      );
+    }
+  }
+
+  Future<void> sendNotification({
+    required String token,
+    required String title,
+    required String body,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/notifications/send'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'token': token,
+          'title': title,
+          'body': body,
+          'data': data,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        print('Failed to send notification: ${response.body}');
+      }
+    } catch (e) {
+      print('Error sending notification: $e');
     }
   }
 }

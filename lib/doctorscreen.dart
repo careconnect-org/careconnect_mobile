@@ -4,33 +4,48 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/chat_screen.dart';
+import 'services/auth_service.dart';
 
 class DoctorsPage extends StatefulWidget {
-  const DoctorsPage({super.key});
+  final String? selectedSpecialty;
+
+  const DoctorsPage({
+    Key? key,
+    this.selectedSpecialty,
+  }) : super(key: key);
 
   @override
-  State<DoctorsPage> createState() => _DoctorsPageState();
+  _DoctorsPageState createState() => _DoctorsPageState();
 }
 
 class _DoctorsPageState extends State<DoctorsPage> {
   List<Map<String, dynamic>> doctors = [];
   bool isLoading = true;
   String error = '';
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
     super.initState();
-    fetchDoctors();
+    _checkAuthAndFetchDoctors();
   }
 
-  Future<String?> _getAuthToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token');
+  Future<void> _checkAuthAndFetchDoctors() async {
+    final isLoggedIn = await _authService.isLoggedIn();
+    if (!isLoggedIn) {
+      setState(() {
+        error = 'Please login to view doctors';
+        isLoading = false;
+      });
+      return;
+    }
+    await fetchDoctors();
   }
 
   Future<void> fetchDoctors() async {
     try {
-      final token = await _getAuthToken();
+      final token = await _authService.getToken();
       if (token == null) {
         setState(() {
           error = 'Please login to view doctors';
@@ -39,7 +54,6 @@ class _DoctorsPageState extends State<DoctorsPage> {
         return;
       }
 
-      print('Fetching doctors from API...');
       final response = await http.get(
         Uri.parse('https://careconnect-api-v2kw.onrender.com/api/doctor/all'),
         headers: {
@@ -48,9 +62,6 @@ class _DoctorsPageState extends State<DoctorsPage> {
           'Authorization': 'Bearer $token',
         },
       ).timeout(const Duration(seconds: 10));
-
-      print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         try {
@@ -75,10 +86,11 @@ class _DoctorsPageState extends State<DoctorsPage> {
               final from = firstSlot?['from'] ?? '9:00 AM';
               final to = firstSlot?['to'] ?? '5:00 PM';
               return {
+                'id': doctor['_id'] ?? '',
                 'name': '$firstName $lastName',
                 'specialty': doctor['specialization'] ?? 'General Practitioner',
-                'rating': 4.0, 
-                'available': true, 
+                'rating': 4.0,
+                'available': true,
                 'workingHours': '$from - $to',
                 'image': user != null ? user['image'] ?? 'https://i.pravatar.cc/150?img=1' : 'https://i.pravatar.cc/150?img=1',
                 'hospital': doctor['hospital'] ?? 'Not specified',
@@ -96,21 +108,23 @@ class _DoctorsPageState extends State<DoctorsPage> {
           });
         }
       } else if (response.statusCode == 401) {
-        setState(() {
-          error = 'Session expired. Please login again.';
-          isLoading = false;
-        });
+        // Token might be expired, try to refresh
+        final newToken = await _authService.refreshToken();
+        if (newToken != null) {
+          // Retry the request with new token
+          await fetchDoctors();
+        } else {
+          setState(() {
+            error = 'Session expired. Please login again.';
+            isLoading = false;
+          });
+        }
       } else {
         setState(() {
-          error = 'Failed to load doctors. Status code: ${response.statusCode}\nResponse: ${response.body}';
+          error = 'Failed to load doctors. Status code: ${response.statusCode}';
           isLoading = false;
         });
       }
-    } on TimeoutException {
-      setState(() {
-        error = 'Request timed out. Please check your internet connection and try again.';
-        isLoading = false;
-      });
     } catch (e) {
       print('Error fetching doctors: $e');
       setState(() {
@@ -120,12 +134,34 @@ class _DoctorsPageState extends State<DoctorsPage> {
     }
   }
 
+  void _startChat(BuildContext context, Map<String, dynamic> doctor) {
+    if (doctor['id'] == null || doctor['id'].toString().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to start chat: Doctor ID not available'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatScreen(
+          otherUserId: doctor['id'],
+          otherUserName: doctor['name'] ?? 'Unknown Doctor',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           "Our Doctors",
           style: TextStyle(
@@ -165,7 +201,6 @@ class _DoctorsPageState extends State<DoctorsPage> {
                       if (error.contains('login'))
                         ElevatedButton(
                           onPressed: () {
-                            // Navigate to login screen
                             Navigator.pushReplacementNamed(context, '/login');
                           },
                           child: const Text('Go to Login'),
@@ -218,7 +253,6 @@ class _DoctorsPageState extends State<DoctorsPage> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Doctor's Image
                   Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -230,7 +264,6 @@ class _DoctorsPageState extends State<DoctorsPage> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  // Doctor's Info
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,25 +357,17 @@ class _DoctorsPageState extends State<DoctorsPage> {
               const SizedBox(height: 16),
               const Divider(height: 1),
               const SizedBox(height: 16),
-              // Chat Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatDetailScreen(doctor: doctor),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.chat_bubble_outline),
+                  onPressed: () => _startChat(context, doctor),
+                  icon: const Icon(Icons.message),
                   label: const Text(
-                    "Start Chat",
+                    "Message",
                     style: TextStyle(fontSize: 16),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -358,7 +383,6 @@ class _DoctorsPageState extends State<DoctorsPage> {
     );
   }
 
-  // Helper widget for info rows
   Widget _buildInfoRow(IconData icon, String text) {
     return Row(
       children: [

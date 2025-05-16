@@ -120,14 +120,11 @@ class _AppointmentFormState extends State<AppointmentForm> {
             _doctors = doctorsData
                 .map<Map<String, dynamic>>((doctor) => {
                       '_id': doctor['_id'] ?? '',
-                      'specialization':
-                          doctor['specialization'] ?? 'General Practitioner',
+                      'specialization': doctor['specialization'] ?? 'General Practitioner',
                       'hospital': doctor['hospital'] ?? 'Not specified',
                       'yearsOfExperience': doctor['yearsOfExperience'] ?? 0,
                       'licenseNumber': doctor['licenseNumber'] ?? '',
-                      'user': doctor['user'] != null
-                          ? '${doctor['user']['firstName'] ?? ''} ${doctor['user']['lastName'] ?? ''}'
-                          : 'Unknown Doctor',
+                      'user': doctor['user'] ?? {},
                     })
                 .toList();
             _isLoadingDoctors = false;
@@ -165,8 +162,7 @@ class _AppointmentFormState extends State<AppointmentForm> {
       } else {
         print('Failed to load doctors: ${response.statusCode}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Failed to load doctors: ${response.statusCode}')),
+          SnackBar(content: Text('Failed to load doctors: ${response.statusCode}')),
         );
         setState(() => _isLoadingDoctors = false);
       }
@@ -291,14 +287,23 @@ class _AppointmentFormState extends State<AppointmentForm> {
 
   // Helper function to get doctor display name
   String _getDoctorDisplayName(Map<String, dynamic> doctor) {
-    if (doctor.containsKey('specialization')) {
-      return doctor['specialization'] ?? 'Unknown Doctor';
+    String doctorName = '';
+    String specialization = doctor['specialization'] ?? '';
+
+    // Get doctor's name from user object
+    if (doctor['user'] is Map) {
+      String firstName = doctor['user']['firstName'] ?? '';
+      String lastName = doctor['user']['lastName'] ?? '';
+      doctorName = '$firstName $lastName'.trim();
     }
-    if (doctor.containsKey('user')) {
-      return doctor['user'] ?? 'Unknown Doctor';
-    }
-    if (doctor.containsKey('name')) {
-      return doctor['name'];
+
+    // Return combined name and specialization
+    if (doctorName.isNotEmpty && specialization.isNotEmpty) {
+      return 'Dr. $doctorName - $specialization';
+    } else if (doctorName.isNotEmpty) {
+      return 'Dr. $doctorName';
+    } else if (specialization.isNotEmpty) {
+      return 'Dr. Unknown - $specialization';
     }
     return 'Doctor ${doctor['_id']?.toString().substring(0, 6) ?? ''}';
   }
@@ -469,25 +474,33 @@ class _AppointmentFormState extends State<AppointmentForm> {
                       child: CircularProgressIndicator(),
                     ),
                   )
-                : DropdownButtonFormField<String>(
-                    value: _selectedDoctor,
-                    decoration: const InputDecoration(
-                      labelText: 'Doctor *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person),
+                : Container(
+                    height: 60,
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedDoctor,
+                      decoration: const InputDecoration(
+                        labelText: 'Doctor *',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                      hint: const Text('Select Doctor'),
+                      isExpanded: true,
+                      menuMaxHeight: 300,
+                      items: _doctors.map((doctor) {
+                        return DropdownMenuItem<String>(
+                          value: doctor['_id'],
+                          child: Text(
+                            _getDoctorDisplayName(doctor),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedDoctor = value;
+                        });
+                      },
                     ),
-                    hint: const Text('Select Doctor'),
-                    items: _doctors.map((doctor) {
-                      return DropdownMenuItem<String>(
-                        value: doctor['_id'],
-                        child: Text(_getDoctorDisplayName(doctor)),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedDoctor = value;
-                      });
-                    },
                   ),
             const SizedBox(height: 15),
 

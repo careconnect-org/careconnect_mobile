@@ -66,7 +66,7 @@ class _AdminChatDetailScreenState extends State<AdminChatDetailScreen> {
   Future<void> handleSend() async {
     if (chatRoomId != null && _messageController.text.trim().isNotEmpty) {
       try {
-        await _messagingService.sendMessage(
+        final messageId = _messagingService.sendMessage(
           chatRoomId!,
           _messageController.text.trim(),
         );
