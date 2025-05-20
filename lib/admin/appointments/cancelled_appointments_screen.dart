@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'appointment_utils.dart';
 import 'appointment_form.dart';
 import 'appointment_detail_screen.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class CancelledAppointmentsScreen extends StatefulWidget {
   const CancelledAppointmentsScreen({super.key});
@@ -41,8 +42,7 @@ class _CancelledAppointmentsScreenState
       isLoading = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     try {
@@ -150,8 +150,7 @@ class _CancelledAppointmentsScreenState
       isLoading = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     // Create filter parameters

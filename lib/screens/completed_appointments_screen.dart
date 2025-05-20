@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'appointment_detail_screen.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class CompletedAppointmentsScreen extends StatefulWidget {
   const CompletedAppointmentsScreen({super.key});
@@ -30,9 +31,8 @@ class _CompletedAppointmentsScreenState extends State<CompletedAppointmentsScree
     });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      final userData = prefs.getString('user_data');
+      final token = await LocalStorageService.getAuthToken();
+      final userData = await LocalStorageService.getUserData();
       
       if (token == null || userData == null) {
         setState(() {
@@ -42,11 +42,7 @@ class _CompletedAppointmentsScreenState extends State<CompletedAppointmentsScree
         return;
       }
 
-      final userInfo = json.decode(userData);
-      print('Full login response: $userInfo');
-      
-      // Get the user ID from the user object
-      final userId = userInfo['_id'];
+      final userId = userData['_id'];
       print('User ID: $userId');
 
       if (userId == null) {

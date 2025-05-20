@@ -17,20 +17,20 @@ class Message {
     this.isRead = false,
   });
 
-  factory Message.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+  factory Message.fromMap(Map<String, dynamic> map) {
     return Message(
-      id: doc.id,
-      senderId: data['senderId'] ?? '',
-      receiverId: data['receiverId'] ?? '',
-      content: data['content'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
-      isRead: data['isRead'] ?? false,
+      id: map['id'] ?? '',
+      senderId: map['senderId'] ?? '',
+      receiverId: map['receiverId'] ?? '',
+      content: map['content'] ?? '',
+      timestamp: (map['timestamp'] as Timestamp).toDate(),
+      isRead: map['isRead'] ?? false,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'senderId': senderId,
       'receiverId': receiverId,
       'content': content,

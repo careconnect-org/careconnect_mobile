@@ -3,7 +3,7 @@ import '../database/database_helper.dart';
 import '../models/health_recommendation.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class AdminHealthRecommendationScreen extends StatefulWidget {
   @override
@@ -43,8 +43,7 @@ class _AdminHealthRecommendationScreenState extends State<AdminHealthRecommendat
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token'); // Use your actual key here
+      final token = await LocalStorageService.getAuthToken(); // Use your actual key here
       if (token == null) throw Exception('No auth token found');
 
       final response = await http.get(

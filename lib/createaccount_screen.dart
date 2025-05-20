@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'fill_profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'login-screen.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class CreateNewAccountScreen extends StatefulWidget {
   const CreateNewAccountScreen({Key? key}) : super(key: key);
@@ -70,10 +71,8 @@ _saveUserData();
     );
   }
   void _saveUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_email', _emailController.text);
-    await prefs.setString('user_password', _passwordController.text);
-    }
+    await LocalStorageService.saveUserCredentials(_emailController.text, _passwordController.text);
+  }
 
   void _showSuccessDialog() {
     

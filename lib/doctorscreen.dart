@@ -149,8 +149,8 @@ class _DoctorsPageState extends State<DoctorsPage> {
       context,
       MaterialPageRoute(
         builder: (context) => ChatScreen(
-          otherUserId: doctor['id'],
-          otherUserName: doctor['name'] ?? 'Unknown Doctor',
+          receiverId: doctor['id'],
+          receiverName: doctor['name'],
         ),
       ),
     );

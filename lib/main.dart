@@ -5,7 +5,7 @@ import 'services/notification_service.dart';
 import 'dart:convert';
 import 'firebase_options.dart';
 import 'letsign_in.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 import 'screens/sports_crud_screen.dart';
 import 'screens/food_crud_screen.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
@@ -58,16 +58,14 @@ Future<void> _completeInitialization() async {
 
 Future<void> _checkUserRoleAndSubscribe() async {
   try {
-    final prefs = await SharedPreferences.getInstance();
-    final userData = prefs.getString('user_data');
-    if (userData != null) {
-      final userInfo = Map<String, dynamic>.from(json.decode(userData));
-      final userRole = userInfo['role']?.toString().toLowerCase();
-
-      if (userRole == 'admin') {
-        // Subscribe to admin topic for notifications
+    final userRole = await LocalStorageService.getUserRole();
+    if (userRole != null) {
+      // Subscribe to role-specific topics
+      if (userRole.toLowerCase() == 'admin') {
         await NotificationService().subscribeToAdminNotifications();
       }
+      // Subscribe to general appointment notifications for all users
+      await NotificationService().initialize(); // This will subscribe to 'appointments' topic
     }
   } catch (e) {
     print('Error checking user role: $e');
@@ -111,11 +109,14 @@ class AppointmentsNavigator extends StatelessWidget {
         child: ElevatedButton(
           onPressed: () async {
             // Check if there's a specific appointment to show
-            final prefs = await SharedPreferences.getInstance();
-            final appointmentId = prefs.getString('show_appointment_id');
+            final userData = await LocalStorageService.getUserData();
+            final appointmentId = userData?['show_appointment_id'];
             if (appointmentId != null) {
               // Clear the saved ID
-              await prefs.remove('show_appointment_id');
+              await LocalStorageService.saveAuthData(
+                token: await LocalStorageService.getAuthToken() ?? '',
+                userData: {...?userData, 'show_appointment_id': null},
+              );
               // Navigate to appointment detail (implement this based on your app structure)
               print('Should navigate to appointment: $appointmentId');
             }

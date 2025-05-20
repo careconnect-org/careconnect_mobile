@@ -1,97 +1,71 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
-import 'dart:async';
 import '../services/chat_service.dart';
 import '../models/message.dart';
+import 'package:intl/intl.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String otherUserId;
-  final String otherUserName;
+  final String receiverId;
+  final String receiverName;
 
   const ChatScreen({
     Key? key,
-    required this.otherUserId,
-    required this.otherUserName,
+    required this.receiverId,
+    required this.receiverName,
   }) : super(key: key);
 
   @override
-  _ChatScreenState createState() => _ChatScreenState();
+  State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final TextEditingController _messageController = TextEditingController();
   final ChatService _chatService = ChatService();
+  final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isTyping = false;
-  Timer? _typingTimer;
-  List<Message> _messages = [];
 
   @override
   void initState() {
     super.initState();
-    _initializeChat();
-  }
-
-  Future<void> _initializeChat() async {
-    try {
-      // Ensure chat channel exists
-      await _chatService.ensureChatChannel(widget.otherUserId);
-      
-      // Mark messages as read
-      await _markMessagesAsRead();
-    } catch (e) {
-      print('Error initializing chat: $e');
-    }
+    _markMessagesAsRead();
   }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
-    _typingTimer?.cancel();
     super.dispose();
   }
 
   Future<void> _markMessagesAsRead() async {
-    try {
-      await _chatService.markMessagesAsRead(widget.otherUserId);
-    } catch (e) {
-      print('Error marking messages as read: $e');
-    }
+    await _chatService.markMessagesAsRead(widget.receiverId);
   }
 
-  void _handleTyping(String text) {
-    if (!_isTyping) {
-      _isTyping = true;
-      _chatService.setTypingStatus(widget.otherUserId, true);
-    }
-
-    _typingTimer?.cancel();
-    _typingTimer = Timer(const Duration(seconds: 1), () {
-      _isTyping = false;
-      _chatService.setTypingStatus(widget.otherUserId, false);
-    });
-  }
-
-  Future<void> _sendMessage() async {
+  void _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
+
+    final message = _messageController.text.trim();
+    _messageController.clear();
 
     try {
       await _chatService.sendMessage(
-        receiverId: widget.otherUserId,
-        content: _messageController.text.trim(),
+        receiverId: widget.receiverId,
+        content: message,
       );
-      _messageController.clear();
-      _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      _scrollToBottom();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send message: $e')),
+        SnackBar(content: Text('Error sending message: $e')),
+      );
+    }
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
       );
     }
   }
@@ -118,9 +92,9 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.otherUserName),
+            Text(widget.receiverName),
             StreamBuilder<bool>(
-              stream: _chatService.getTypingStatus(widget.otherUserId),
+              stream: _chatService.getTypingStatus(widget.receiverId),
               builder: (context, snapshot) {
                 if (snapshot.data == true) {
                   return const Text(
@@ -133,93 +107,41 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              if (value == 'delete') {
-                // Show confirmation dialog
-                final shouldDelete = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Delete Chat'),
-                    content: const Text('Are you sure you want to delete this chat? This action cannot be undone.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                      ),
-                    ],
-                  ),
-                );
-
-                if (shouldDelete == true) {
-                  try {
-                    await _chatService.deleteChatRoom(widget.otherUserId);
-                    if (mounted) {
-                      Navigator.pop(context); // Return to previous screen
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Chat deleted successfully')),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to delete chat: $e')),
-                      );
-                    }
-                  }
-                }
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Delete Chat', style: TextStyle(color: Colors.red)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<List<Message>>(
-              stream: _chatService.getMessages(widget.otherUserId),
+              stream: _chatService.getMessages(widget.receiverId),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
 
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                _messages = snapshot.data ?? [];
-                
+                final messages = snapshot.data!;
+
                 return ListView.builder(
                   controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _messages.length,
+                  padding: const EdgeInsets.all(16.0),
+                  itemCount: messages.length,
                   itemBuilder: (context, index) {
-                    final message = _messages[index];
-                    final isMe = message.senderId == FirebaseAuth.instance.currentUser?.uid;
-                    
+                    final message = messages[index];
+                    final isMe = message.senderId == _chatService.currentUserId;
+
                     return Align(
                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        margin: const EdgeInsets.only(bottom: 8.0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 10.0,
+                        ),
                         decoration: BoxDecoration(
                           color: isMe ? Colors.blue : Colors.grey[300],
                           borderRadius: BorderRadius.circular(20),
@@ -267,7 +189,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8.0),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
@@ -284,21 +206,31 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    onChanged: _handleTyping,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: 'Type a message...',
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
+                        borderRadius: BorderRadius.all(Radius.circular(20)),
                       ),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 8.0,
+                      ),
                     ),
+                    onChanged: (value) {
+                      if (value.isNotEmpty && !_isTyping) {
+                        _isTyping = true;
+                        _chatService.setTypingStatus(widget.receiverId, true);
+                      } else if (value.isEmpty && _isTyping) {
+                        _isTyping = false;
+                        _chatService.setTypingStatus(widget.receiverId, false);
+                      }
+                    },
                   ),
                 ),
+                const SizedBox(width: 8.0),
                 IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blue),
+                  icon: const Icon(Icons.send),
+                  color: Colors.blue,
                   onPressed: _sendMessage,
                 ),
               ],

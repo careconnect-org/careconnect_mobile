@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'appointment_utils.dart';
 import 'appointment_detail_screen.dart';
 import 'services/notification_service.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class CompletedAppointmentsScreen extends StatefulWidget {
   @override
@@ -29,8 +30,8 @@ class _CompletedAppointmentsScreenState
       _isLoading = true;
     });
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString('token');
+    final token = await LocalStorageService.getAuthToken();
+    if (token == null) return;
 
     var response = await http.get(
       Uri.parse('https://yourapiurl.com/appointments/upcoming'),

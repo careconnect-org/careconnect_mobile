@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/notification_service.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class AppointmentUtils {
   // ...existing code...
@@ -10,8 +11,7 @@ class AppointmentUtils {
   // Update appointment status using the dedicated status endpoint
   static Future<bool> updateAppointmentStatus(
       BuildContext context, String id, String newStatus) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return false;
 
     try {
@@ -93,8 +93,7 @@ class AppointmentUtils {
 
   // Delete appointment
   static Future<bool> deleteAppointment(BuildContext context, String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return false;
 
     try {

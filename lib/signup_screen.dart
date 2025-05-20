@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:careconnect/otp_verification_screen.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({Key? key}) : super(key: key);
@@ -56,19 +57,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
         final authToken = responseData['token'];
         print('Auth token received: $authToken');
 
-        // Save the auth token
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', authToken);
-
-        // Save user data
-        await prefs.setString(
-            'user_data',
-            jsonEncode({
-              'email': _emailController.text,
-              'firstName': _firstNameController.text,
-              'lastName': _lastNameController.text,
-              'phoneNumber': _phoneController.text,
-            }));
+        // Save the auth token and user data using LocalStorageService
+        await LocalStorageService.saveAuthData(
+          token: authToken,
+          userData: {
+            'email': _emailController.text,
+            'firstName': _firstNameController.text,
+            'lastName': _lastNameController.text,
+            'phoneNumber': _phoneController.text,
+          },
+        );
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -77,9 +75,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          // Save email for OTP verification
-          await prefs.setString('user_email', _emailController.text);
-          await prefs.setString('user_password', _passwordController.text);
+          // Save email and password for OTP verification
+          await LocalStorageService.saveUserCredentials(
+            _emailController.text,
+            _passwordController.text,
+          );
 
           // Using push instead of pushReplacement to maintain navigation history
           Navigator.push(

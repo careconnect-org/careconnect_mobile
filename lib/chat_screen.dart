@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 // import 'package:http/http.dart' as http;
 // import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final Map<String, dynamic> doctor;
@@ -27,21 +27,46 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _authToken;
   String? _editingMessageId;
   bool _isEditing = false;
+  String? _chatSendId;
+  
+  // ChatService._internal() {
+  //   _initializeUserRole();
+  // }
 
   Future<void> _getStoredToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _authToken = prefs.getString('auth_token');
+      _authToken = await LocalStorageService.getAuthToken();
       print('Retrieved stored token: ${_authToken != null ? 'Token exists' : 'No token found'}');
     } catch (e) {
       print('Error getting stored token: $e');
     }
   }
 
+  Future<void> _initializeUserRole() async {
+    try {
+      _chatSendId = await LocalStorageService.getUserId();
+      print('User ID from storage: $_chatSendId');
+      if (_chatSendId == null) {
+        setState(() {
+          error = 'Failed to get user ID';
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error getting user ID: $e');
+      setState(() {
+        error = 'Error initializing user ID: $e';
+        isLoading = false;
+      });
+    }
+  }
+
   Future<void> _storeToken(String token) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('auth_token', token);
+      await LocalStorageService.saveAuthData(
+        token: token,
+        userData: {'token': token},
+      );
       _authToken = token;
       print('Token stored successfully');
     } catch (e) {
@@ -52,7 +77,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeChat();
+    _initializeUserRole().then((_) {
+      _initializeChat();
+    });
   }
 
   Future<void> _initializeChat() async {
@@ -167,6 +194,21 @@ class _ChatScreenState extends State<ChatScreen> {
         return;
       }
 
+      // Get the sender ID, using multiple fallback options
+      String? senderId = _chatSendId;
+      if (senderId == null) {
+        senderId = user?.uid;
+      }
+      if (senderId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to identify sender'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       _messageController.clear(); // Clear the input field immediately
 
       // Get user details
@@ -179,7 +221,8 @@ class _ChatScreenState extends State<ChatScreen> {
       final timestamp = FieldValue.serverTimestamp();
       final message = {
         'text': messageText,
-        'senderId': user?.uid ?? _authToken,
+        'senderId': senderId,
+        'receiverId': widget.doctor['id'],
         'senderName': userName,
         'timestamp': timestamp,
         'isAdmin': false,
@@ -202,7 +245,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _firestore.collection('chatRooms').doc(_chatRoomId).update({
         'lastMessage': messageText,
         'lastMessageTime': timestamp,
-        'lastMessageSender': user?.uid ?? _authToken,
+        'lastMessageSender': senderId,
         'lastMessageSenderName': userName,
         'status': 'active',
         'unreadCount': FieldValue.increment(1),
@@ -531,7 +574,8 @@ class _ChatScreenState extends State<ChatScreen> {
                               itemBuilder: (context, index) {
                                 final message = messages[index].data() as Map<String, dynamic>;
                                 final messageId = messages[index].id;
-                                final isMe = message['senderId'] == (_auth.currentUser?.uid ?? _authToken);
+                                // final isMe = message['senderId'] == (_auth.currentUser?.uid ?? _authToken);
+                                 final isMe = message['senderId'] == _chatSendId;
                                 final senderName = message['senderName'] ?? (isMe ? 'You' : 'Doctor');
                                 final messageStatus = message['status'] ?? 'sent';
                                 final isEdited = message['isEdited'] ?? false;
