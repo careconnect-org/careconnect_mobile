@@ -49,6 +49,10 @@ class LocalStorageService {
     return await SecureStorageService().getUserId();
   }
 
+  static Future<String?> getUserName() async {
+    return await SecureStorageService().getUserName();
+  }
+
   // Check if user is authenticated
   static Future<bool> isAuthenticated() async {
     return await SecureStorageService().isAuthenticated();
@@ -146,4 +150,76 @@ class LocalStorageService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_darkModeKey) ?? false;
   }
-} 
+
+  // Save chat room ID for a specific doctor
+  static Future<void> saveChatRoomId(String doctorId, String chatRoomId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('chat_room_${doctorId}', chatRoomId);
+      print('Chat room ID stored for doctor $doctorId: $chatRoomId');
+    } catch (e) {
+      print('Error storing chat room ID: $e');
+    }
+  }
+
+  // Get chat room ID for a specific doctor
+  static Future<String?> getChatRoomId(String doctorId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final chatRoomId = prefs.getString('chat_room_${doctorId}');
+      return chatRoomId;
+    } catch (e) {
+      print('Error getting chat room ID: $e');
+      return null;
+    }
+  }
+
+  // Finds or creates a consistent chat room ID
+  static Future<String> _getOrCreateConsistentChatRoomId(
+      String doctorId) async {
+    String? chatRoomId = await getChatRoomId(doctorId);
+    if (chatRoomId == null) {
+      chatRoomId = '${DateTime.now().millisecondsSinceEpoch}-$doctorId';
+      await saveChatRoomId(doctorId, chatRoomId);
+    }
+    return chatRoomId;
+  }
+
+  // Gets all messages
+  static Future<List<Map<String, dynamic>>> fetchAllMessages(
+      String doctorId) async {
+    final chatRoomId = await _getOrCreateConsistentChatRoomId(doctorId);
+    // Logic to fetch all messages from the chat room
+    return [];
+  }
+
+  // Gets messages sent by the current user
+  static Future<List<Map<String, dynamic>>> fetchSentMessages(
+      String doctorId) async {
+    final chatRoomId = await _getOrCreateConsistentChatRoomId(doctorId);
+    // Logic to fetch sent messages from the chat room
+    return [];
+  }
+
+  // Gets messages received from others
+  static Future<List<Map<String, dynamic>>> fetchReceivedMessages(
+      String doctorId) async {
+    final chatRoomId = await _getOrCreateConsistentChatRoomId(doctorId);
+    // Logic to fetch received messages from the chat room
+    return [];
+  }
+
+  // Gets the most recent message
+  static Future<Map<String, dynamic>?> fetchLatestMessage(
+      String doctorId) async {
+    final chatRoomId = await _getOrCreateConsistentChatRoomId(doctorId);
+    // Logic to fetch the latest message from the chat room
+    return null;
+  }
+
+  // Refreshes the message stream
+  static Future<void> _refreshMessages(String doctorId) async {
+    final chatRoomId = await _getOrCreateConsistentChatRoomId(doctorId);
+    // Logic to refresh messages in the chat room
+  }
+}

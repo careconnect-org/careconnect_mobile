@@ -77,7 +77,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
 
       if (response.statusCode == 200) {
         final List<dynamic> allDoctors = json.decode(response.body);
-        
+
         // Filter doctors to only include those with chat rooms
         final List<Map<String, dynamic>> doctors = allDoctors
             .where((doctor) => doctorIds.contains(doctor['_id']))
@@ -100,12 +100,13 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
             final data = doc.data();
             final participants = List<String>.from(data['participants']);
             final doctorId = participants.firstWhere((id) => id != user.uid);
-            final doctor = doctorMap[doctorId] ?? {
-              'id': doctorId,
-              'name': 'Unknown Doctor',
-              'specialty': 'General',
-              'image': null,
-            };
+            final doctor = doctorMap[doctorId] ??
+                {
+                  'id': doctorId,
+                  'name': 'Unknown Doctor',
+                  'specialty': 'General',
+                  'image': null,
+                };
 
             // Get the last message from the messages collection
             final lastMessageDoc = await _firestore
@@ -130,9 +131,12 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
               'id': doc.id,
               'doctor': doctor,
               'lastMessage': lastMessage?['text'] ?? data['lastMessage'] ?? '',
-              'lastMessageTime': lastMessage?['timestamp'] ?? data['lastMessageTime'],
-              'lastMessageSender': lastMessage?['senderId'] ?? data['lastMessageSender'],
-              'lastMessageSenderName': lastMessage?['senderName'] ?? data['lastMessageSenderName'],
+              'lastMessageTime':
+                  lastMessage?['timestamp'] ?? data['lastMessageTime'],
+              'lastMessageSender':
+                  lastMessage?['senderId'] ?? data['lastMessageSender'],
+              'lastMessageSenderName':
+                  lastMessage?['senderName'] ?? data['lastMessageSenderName'],
               'unreadCount': data['unreadCount'] ?? 0,
               'status': 'active',
               'createdAt': data['createdAt'],
@@ -165,6 +169,179 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  // Find active chat with a specific doctor by ID
+  Future<Map<String, dynamic>?> findActiveChatWithDoctor(
+      String doctorId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      for (var chatRoom in _chatRooms) {
+        // Check if the doctor is a participant in this chat room
+        if (chatRoom['doctor']['id'] == doctorId) {
+          print('Found existing chat room with doctor: $doctorId');
+          return chatRoom;
+        }
+      }
+
+      // If not found in local state, try querying Firestore directly
+      final chatRoomsSnapshot = await _firestore
+          .collection('chatRooms')
+          .where('participants', arrayContains: user.uid)
+          .get();
+
+      for (var doc in chatRoomsSnapshot.docs) {
+        final data = doc.data();
+        final participants = List<String>.from(data['participants']);
+        if (participants.contains(doctorId)) {
+          print('Found existing chat room in Firestore with doctor: $doctorId');
+          // Fetch doctor info and return chat room
+          final doctor = await _fetchDoctorById(doctorId);
+          return {
+            'id': doc.id,
+            'doctor': doctor,
+            'lastMessage': data['lastMessage'] ?? '',
+            'lastMessageTime': data['lastMessageTime'],
+          };
+        }
+      }
+
+      return null; // No active chat found with this doctor
+    } catch (e) {
+      print('Error finding active chat: $e');
+      return null;
+    }
+  }
+
+  // Fetch doctor information by ID
+  Future<Map<String, dynamic>> _fetchDoctorById(String doctorId) async {
+    try {
+      // Try to find doctor in existing list first
+      for (var chatRoom in _chatRooms) {
+        if (chatRoom['doctor']['id'] == doctorId) {
+          return chatRoom['doctor'];
+        }
+      }
+
+      // If not found, fetch from API
+      final response = await http.get(
+        Uri.parse(
+            'https://careconnect-api-v2kw.onrender.com/api/doctor/$doctorId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final doctor = json.decode(response.body);
+        return {
+          'id': doctor['_id'],
+          'name': '${doctor['firstName']} ${doctor['lastName']}',
+          'specialty': doctor['specialty'],
+          'image': doctor['image'],
+        };
+      } else {
+        // Return generic doctor info if API fails
+        return {
+          'id': doctorId,
+          'name': 'Doctor',
+          'specialty': 'Unknown',
+          'image': null,
+        };
+      }
+    } catch (e) {
+      print('Error fetching doctor: $e');
+      return {
+        'id': doctorId,
+        'name': 'Doctor',
+        'specialty': 'Unknown',
+        'image': null,
+      };
+    }
+  }
+
+  // Show dialog with list of active chats
+  void _showActiveChatsList() {
+    if (_chatRooms.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No active chats found'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          constraints: const BoxConstraints(maxHeight: 400),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Your Active Chats',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _chatRooms.length,
+                  itemBuilder: (context, index) {
+                    final chatRoom = _chatRooms[index];
+                    final doctor = chatRoom['doctor'];
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: doctor['image'] != null
+                            ? NetworkImage(doctor['image'])
+                            : null,
+                        child: doctor['image'] == null
+                            ? const Icon(Icons.person, size: 20)
+                            : null,
+                      ),
+                      title: Text(doctor['name']),
+                      subtitle: Text(
+                        chatRoom['lastMessage'] ?? 'No messages yet',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatScreen(
+                              doctor: doctor,
+                              existingChatRoomId: chatRoom['id'],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -217,10 +394,14 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                           final chatRoom = _chatRooms[index];
                           final doctor = chatRoom['doctor'];
                           final lastMessage = chatRoom['lastMessage'];
-                          final lastMessageTime = chatRoom['lastMessageTime'] as Timestamp?;
-                          final lastMessageSender = chatRoom['lastMessageSender'];
-                          final lastMessageSenderName = chatRoom['lastMessageSenderName'];
-                          final unreadCount = chatRoom['unreadCount'] as int? ?? 0;
+                          final lastMessageTime =
+                              chatRoom['lastMessageTime'] as Timestamp?;
+                          final lastMessageSender =
+                              chatRoom['lastMessageSender'];
+                          final lastMessageSenderName =
+                              chatRoom['lastMessageSenderName'];
+                          final unreadCount =
+                              chatRoom['unreadCount'] as int? ?? 0;
                           final isActive = chatRoom['status'] == 'active';
 
                           return Hero(
@@ -232,7 +413,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => ChatScreen(doctor: doctor),
+                                      builder: (context) =>
+                                          ChatScreen(doctor: doctor),
                                     ),
                                   );
                                 },
@@ -255,11 +437,13 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                         children: [
                                           CircleAvatar(
                                             radius: 30,
-                                            backgroundImage: doctor['image'] != null
+                                            backgroundImage: doctor['image'] !=
+                                                    null
                                                 ? NetworkImage(doctor['image'])
                                                 : null,
                                             child: doctor['image'] == null
-                                                ? const Icon(Icons.person, size: 30)
+                                                ? const Icon(Icons.person,
+                                                    size: 30)
                                                 : null,
                                           ),
                                           if (isActive)
@@ -284,7 +468,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                       const SizedBox(width: 16),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Row(
                                               children: [
@@ -292,20 +477,24 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                                   child: Text(
                                                     doctor['name'],
                                                     style: const TextStyle(
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                       fontSize: 16,
                                                     ),
                                                   ),
                                                 ),
                                                 if (unreadCount > 0)
                                                   Container(
-                                                    padding: const EdgeInsets.symmetric(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
                                                       horizontal: 8,
                                                       vertical: 4,
                                                     ),
                                                     decoration: BoxDecoration(
                                                       color: Colors.blue,
-                                                      borderRadius: BorderRadius.circular(12),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
                                                     ),
                                                     child: Text(
                                                       unreadCount.toString(),
@@ -327,7 +516,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                                 fontSize: 14,
                                               ),
                                             ),
-                                            if (lastMessageSenderName != null) ...[
+                                            if (lastMessageSenderName !=
+                                                null) ...[
                                               const SizedBox(height: 2),
                                               Text(
                                                 'By $lastMessageSenderName',
@@ -342,13 +532,16 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                       ),
                                       const SizedBox(width: 12),
                                       Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
                                         children: [
                                           Text(
                                             lastMessageTime != null
                                                 ? DateFormat('MMM d, h:mm a')
-                                                    .format(lastMessageTime.toDate())
+                                                    .format(lastMessageTime
+                                                        .toDate())
                                                 : '',
                                             style: TextStyle(
                                               fontSize: 12,
@@ -376,6 +569,18 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                           );
                         },
                       ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AvailableDoctorsScreen(),
+            ),
+          );
+        },
+        child: const Icon(Icons.add),
+        backgroundColor: Colors.blue,
       ),
     );
   }
@@ -407,32 +612,55 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AvailableDoctorsScreen(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AvailableDoctorsScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_comment),
+                label: const Text('Start New Chat'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  elevation: 2,
                 ),
-              );
-            },
-            icon: const Icon(Icons.add_comment),
-            label: const Text('Start New Chat'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 12,
               ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: () => _showActiveChatsList(),
+                icon: const Icon(Icons.chat_bubble),
+                label: const Text('Active Chats'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  elevation: 2,
+                ),
               ),
-              elevation: 2,
-            ),
+            ],
           ),
         ],
       ),
     );
   }
-} 
+}

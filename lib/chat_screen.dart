@@ -8,8 +8,13 @@ import 'package:careconnect/services/local_storage_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final Map<String, dynamic> doctor;
+  final String? existingChatRoomId;
 
-  const ChatScreen({super.key, required this.doctor});
+  const ChatScreen({
+    super.key,
+    required this.doctor,
+    this.existingChatRoomId,
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -28,7 +33,8 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _editingMessageId;
   bool _isEditing = false;
   String? _chatSendId;
-  
+  String? _senderName;
+
   // ChatService._internal() {
   //   _initializeUserRole();
   // }
@@ -36,7 +42,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _getStoredToken() async {
     try {
       _authToken = await LocalStorageService.getAuthToken();
-      print('Retrieved stored token: ${_authToken != null ? 'Token exists' : 'No token found'}');
+      print(
+          'Retrieved stored token: ${_authToken != null ? 'Token exists' : 'No token found'}');
     } catch (e) {
       print('Error getting stored token: $e');
     }
@@ -45,6 +52,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _initializeUserRole() async {
     try {
       _chatSendId = await LocalStorageService.getUserId();
+      _senderName = await LocalStorageService.getUserName();
+
       print('User ID from storage: $_chatSendId');
       if (_chatSendId == null) {
         setState(() {
@@ -110,7 +119,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       // Ensure we have either a token or user ID
-      final String identifier = _authToken ?? user?.uid ?? '';
+      final String identifier = _chatSendId ?? _authToken ?? user?.uid ?? '';
       if (identifier.isEmpty) {
         setState(() {
           error = 'No valid user identifier found';
@@ -119,9 +128,14 @@ class _ChatScreenState extends State<ChatScreen> {
         return;
       }
 
-      // Create chat room ID using stored token or user ID
-      _chatRoomId = '${widget.doctor['id']}_$identifier';
-      print('Chat room ID: $_chatRoomId');
+      // Use existingChatRoomId if provided, otherwise generate one
+      if (widget.existingChatRoomId != null) {
+        _chatRoomId = widget.existingChatRoomId;
+        print('Using provided chat room ID: $_chatRoomId');
+      } else {
+        _chatRoomId = await _getOrCreateConsistentChatRoomId();
+        print('Using generated chat room ID: $_chatRoomId');
+      }
 
       // Set up real-time listener for messages with proper ordering and persistence
       _messagesStream = _firestore
@@ -132,7 +146,8 @@ class _ChatScreenState extends State<ChatScreen> {
           .snapshots();
 
       // Create chat room if it doesn't exist
-      final chatRoomDoc = await _firestore.collection('chatRooms').doc(_chatRoomId).get();
+      final chatRoomDoc =
+          await _firestore.collection('chatRooms').doc(_chatRoomId).get();
       if (!chatRoomDoc.exists) {
         print('Creating new chat room...');
         await _firestore.collection('chatRooms').doc(_chatRoomId).set({
@@ -154,6 +169,10 @@ class _ChatScreenState extends State<ChatScreen> {
           'status': 'active',
         });
       }
+
+      // After initialization, immediately fetch messages to ensure we have them
+      final messages = await fetchAllMessages();
+      print('Initialized with ${messages.length} messages from history');
 
       setState(() {
         isLoading = false;
@@ -212,10 +231,33 @@ class _ChatScreenState extends State<ChatScreen> {
       _messageController.clear(); // Clear the input field immediately
 
       // Get user details
-      String userName = 'User';
-      if (user != null) {
-        final userDoc = await _firestore.collection('users').doc(user.uid).get();
-        userName = userDoc.exists ? (userDoc.data()?['name'] ?? user.displayName ?? 'User') : (user.displayName ?? 'User');
+      String userName = _senderName ?? 'User';
+      if (user != null && userName == 'User') {
+        final userDoc =
+            await _firestore.collection('users').doc(user.uid).get();
+        userName = userDoc.exists
+            ? (userDoc.data()?['name'] ?? user.displayName ?? 'User')
+            : (user.displayName ?? 'User');
+      }
+
+      // Verify the chat room exists before proceeding
+      final chatRoomDoc =
+          await _firestore.collection('chatRooms').doc(_chatRoomId).get();
+      if (!chatRoomDoc.exists) {
+        print('Chat room does not exist. Recreating...');
+        // Create chat room if it doesn't exist
+        await _firestore.collection('chatRooms').doc(_chatRoomId).set({
+          'participants': [senderId, widget.doctor['id']],
+          'lastMessage': '',
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'lastMessageSender': senderId,
+          'lastMessageSenderName': userName,
+          'status': 'active',
+          'unreadCount': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        print('Chat room recreated successfully');
       }
 
       final timestamp = FieldValue.serverTimestamp();
@@ -269,7 +311,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _deleteMessage(String messageId) async {
     try {
       if (_chatRoomId == null) return;
-
+      // Update last message if needed
       final timestamp = FieldValue.serverTimestamp();
 
       // Delete the message
@@ -279,8 +321,9 @@ class _ChatScreenState extends State<ChatScreen> {
           .collection('messages')
           .doc(messageId)
           .delete();
+      print('Message deleted: $messageId');
 
-      // Update last message if needed
+      // Check if we need to update the last message in the chat room
       final messagesSnapshot = await _firestore
           .collection('chatRooms')
           .doc(_chatRoomId)
@@ -288,7 +331,6 @@ class _ChatScreenState extends State<ChatScreen> {
           .orderBy('timestamp', descending: true)
           .limit(1)
           .get();
-
       if (messagesSnapshot.docs.isNotEmpty) {
         final lastMessage = messagesSnapshot.docs.first.data();
         await _firestore.collection('chatRooms').doc(_chatRoomId).update({
@@ -335,12 +377,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _updateMessage() async {
-    if (_messageController.text.trim().isEmpty || _editingMessageId == null || _chatRoomId == null) return;
+    if (_messageController.text.trim().isEmpty ||
+        _editingMessageId == null ||
+        _chatRoomId == null) return;
 
     try {
       final messageText = _messageController.text.trim();
       final timestamp = FieldValue.serverTimestamp();
-      
+
       // Update the message
       await _firestore
           .collection('chatRooms')
@@ -361,7 +405,6 @@ class _ChatScreenState extends State<ChatScreen> {
           .collection('messages')
           .doc(_editingMessageId)
           .get();
-
       if (messageDoc.exists) {
         final messageData = messageDoc.data()!;
         final lastMessageDoc = await _firestore
@@ -371,8 +414,8 @@ class _ChatScreenState extends State<ChatScreen> {
             .orderBy('timestamp', descending: true)
             .limit(1)
             .get();
-
-        if (lastMessageDoc.docs.isNotEmpty && lastMessageDoc.docs.first.id == _editingMessageId) {
+        if (lastMessageDoc.docs.isNotEmpty &&
+            lastMessageDoc.docs.first.id == _editingMessageId) {
           await _firestore.collection('chatRooms').doc(_chatRoomId).update({
             'lastMessage': messageText,
             'updatedAt': timestamp,
@@ -383,7 +426,6 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() {
         _editingMessageId = null;
         _isEditing = false;
-        _messageController.clear();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -403,12 +445,209 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  // Add the missing cancelEditing method
   void _cancelEditing() {
     setState(() {
       _editingMessageId = null;
       _isEditing = false;
       _messageController.clear();
     });
+  }
+
+  Future<String> _getOrCreateConsistentChatRoomId() async {
+    final storedChatRoomId =
+        await LocalStorageService.getChatRoomId(widget.doctor['id']);
+    if (storedChatRoomId != null && storedChatRoomId.isNotEmpty) {
+      print('Using stored chat room ID: $storedChatRoomId');
+      return storedChatRoomId;
+    }
+
+    try {
+      final userId = _chatSendId;
+      if (userId != null) {
+        final querySnapshot = await _firestore
+            .collection('chatRooms')
+            .where('participants', arrayContains: userId)
+            .get();
+
+        for (var doc in querySnapshot.docs) {
+          final data = doc.data();
+          if (data['participants'] != null &&
+              (data['participants'] as List).contains(widget.doctor['id'])) {
+            // Found existing chat room
+            print('Found existing chat room: ${doc.id}');
+            // Store it for future reference
+            await LocalStorageService.saveChatRoomId(
+                widget.doctor['id'], doc.id);
+            return doc.id;
+          }
+        }
+      }
+    } catch (e) {
+      print('Error finding existing chat room: $e');
+    }
+
+    // Create a new deterministic chat room ID
+    final newChatRoomId =
+        '${widget.doctor['id']}_${_chatSendId ?? _auth.currentUser?.uid}';
+    print('Creating new chat room ID: $newChatRoomId');
+    // Store it for future reference
+    await LocalStorageService.saveChatRoomId(
+        widget.doctor['id'], newChatRoomId);
+    return newChatRoomId;
+  }
+
+  // Fetch all messages (both sent and received)
+  Future<List<Map<String, dynamic>>> fetchAllMessages() async {
+    if (_chatRoomId == null) {
+      print('Chat room ID is null');
+      return [];
+    }
+    try {
+      final QuerySnapshot messagesSnapshot = await _firestore
+          .collection('chatRooms')
+          .doc(_chatRoomId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .get();
+      print('Fetched ${messagesSnapshot.docs.length} messages');
+
+      return messagesSnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+    } catch (e) {
+      print('Error fetching all messages: $e');
+      return [];
+    }
+  }
+
+  // Fetch only messages sent by the current user
+  Future<List<Map<String, dynamic>>> fetchSentMessages() async {
+    if (_chatRoomId == null || _chatSendId == null) {
+      print('Chat room ID or user ID is null');
+      return [];
+    }
+    try {
+      final QuerySnapshot messagesSnapshot = await _firestore
+          .collection('chatRooms')
+          .doc(_chatRoomId)
+          .collection('messages')
+          .where('senderId', isEqualTo: _chatSendId)
+          .orderBy('timestamp', descending: true)
+          .get();
+      print('Fetched ${messagesSnapshot.docs.length} sent messages');
+
+      return messagesSnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+    } catch (e) {
+      print('Error fetching sent messages: $e');
+      return [];
+    }
+  }
+
+  // Fetch only messages received from others
+  Future<List<Map<String, dynamic>>> fetchReceivedMessages() async {
+    if (_chatRoomId == null || _chatSendId == null) {
+      print('Chat room ID or user ID is null');
+      return [];
+    }
+    try {
+      final QuerySnapshot messagesSnapshot = await _firestore
+          .collection('chatRooms')
+          .doc(_chatRoomId)
+          .collection('messages')
+          .where('senderId', isNotEqualTo: _chatSendId)
+          .orderBy('senderId') // Need a first ordering when using isNotEqualTo
+          .orderBy('timestamp', descending: true)
+          .get();
+      print('Fetched ${messagesSnapshot.docs.length} received messages');
+
+      return messagesSnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+    } catch (e) {
+      print('Error fetching received messages: $e');
+      return [];
+    }
+  }
+
+  // Get the latest message in the chat room
+  Future<Map<String, dynamic>?> fetchLatestMessage() async {
+    if (_chatRoomId == null) {
+      print('Chat room ID is null');
+      return null;
+    }
+    try {
+      final QuerySnapshot latestMessageSnapshot = await _firestore
+          .collection('chatRooms')
+          .doc(_chatRoomId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      if (latestMessageSnapshot.docs.isEmpty) {
+        print('No messages found');
+        return null;
+      }
+
+      final data =
+          latestMessageSnapshot.docs.first.data() as Map<String, dynamic>;
+      final latestMessage = {
+        ...data,
+        'id': latestMessageSnapshot.docs.first.id,
+      };
+      print('Fetched latest message: ${latestMessage['text']}');
+      return latestMessage;
+    } catch (e) {
+      print('Error fetching latest message: $e');
+      return null;
+    }
+  }
+
+  // Refresh messages manually
+  Future<void> _refreshMessages() async {
+    setState(() {
+      isLoading = true;
+    });
+    try {
+      // Recreate the stream to get fresh data
+      _messagesStream = _firestore
+          .collection('chatRooms')
+          .doc(_chatRoomId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .snapshots();
+
+      // Also fetch the latest message to ensure we have it
+      final latestMessage = await fetchLatestMessage();
+      if (latestMessage != null) {
+        print('Latest message refreshed: ${latestMessage['text']}');
+      }
+
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error refreshing messages: $e');
+      setState(() {
+        error = 'Failed to refresh messages: $e';
+        isLoading = false;
+      });
+    }
   }
 
   @override
@@ -420,6 +659,7 @@ class _ChatScreenState extends State<ChatScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         title: Row(
           children: [
+            const SizedBox(width: 10),
             Hero(
               tag: 'doctor_${widget.doctor['id']}',
               child: CircleAvatar(
@@ -443,10 +683,14 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   StreamBuilder<DocumentSnapshot>(
-                    stream: _firestore.collection('chatRooms').doc(_chatRoomId).snapshots(),
+                    stream: _firestore
+                        .collection('chatRooms')
+                        .doc(_chatRoomId)
+                        .snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.hasData && snapshot.data != null) {
-                        final data = snapshot.data!.data() as Map<String, dynamic>?;
+                        final data =
+                            snapshot.data!.data() as Map<String, dynamic>?;
                         if (data != null && data['status'] == 'active') {
                           return const Text(
                             'Online',
@@ -515,7 +759,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(error),
+                        const Icon(Icons.refresh, size: 32, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text(
+                          error,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red),
+                        ),
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () {
@@ -538,28 +788,25 @@ class _ChatScreenState extends State<ChatScreen> {
                           builder: (context, snapshot) {
                             if (snapshot.hasError) {
                               print('Stream error: ${snapshot.error}');
-                              return Center(child: Text('Error: ${snapshot.error}'));
+                              return Center(
+                                  child: Text('Error: ${snapshot.error}'));
                             }
-
-                            if (snapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                  child: CircularProgressIndicator());
                             }
-
                             final messages = snapshot.data?.docs ?? [];
                             if (messages.isEmpty) {
                               return Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey),
+                                    const Icon(Icons.chat_bubble_outline,
+                                        size: 48, color: Colors.grey),
                                     const SizedBox(height: 16),
                                     Text(
                                       'No messages yet',
-                                      style: TextStyle(color: Colors.grey[600]),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Start the conversation with ${widget.doctor['name']}!',
                                       style: TextStyle(color: Colors.grey[600]),
                                     ),
                                   ],
@@ -572,111 +819,147 @@ class _ChatScreenState extends State<ChatScreen> {
                               padding: const EdgeInsets.all(16),
                               itemCount: messages.length,
                               itemBuilder: (context, index) {
-                                final message = messages[index].data() as Map<String, dynamic>;
+                                final message = messages[index].data()
+                                    as Map<String, dynamic>;
                                 final messageId = messages[index].id;
-                                // final isMe = message['senderId'] == (_auth.currentUser?.uid ?? _authToken);
-                                 final isMe = message['senderId'] == _chatSendId;
-                                final senderName = message['senderName'] ?? (isMe ? 'You' : 'Doctor');
-                                final messageStatus = message['status'] ?? 'sent';
-                                final isEdited = message['isEdited'] ?? false;
-                                
+                                final isMe = message['senderId'] == _chatSendId;
+                                final senderName = message['senderName'] ??
+                                    (isMe ? 'You' : 'Doctor');
+                                final messageStatus =
+                                    message['status'] ?? 'sent';
+
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: Row(
-                                    mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                                    mainAxisAlignment: isMe
+                                        ? MainAxisAlignment.end
+                                        : MainAxisAlignment.start,
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       if (!isMe) ...[
                                         CircleAvatar(
+                                          backgroundImage: NetworkImage(
+                                              widget.doctor['image'] ?? ''),
                                           radius: 16,
-                                          backgroundImage: NetworkImage(widget.doctor['image'] ?? ''),
                                           child: widget.doctor['image'] == null
-                                              ? const Icon(Icons.person, size: 16)
+                                              ? const Icon(Icons.person,
+                                                  size: 16, color: Colors.white)
                                               : null,
                                         ),
                                         const SizedBox(width: 8),
                                       ],
                                       Flexible(
                                         child: GestureDetector(
-                                          onLongPress: isMe ? () {
-                                            showModalBottomSheet(
-                                              context: context,
-                                              builder: (context) => Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  ListTile(
-                                                    leading: const Icon(Icons.edit),
-                                                    title: const Text('Edit Message'),
-                                                    onTap: () {
-                                                      Navigator.pop(context);
-                                                      _startEditing(messageId, message['text']);
-                                                    },
-                                                  ),
-                                                  ListTile(
-                                                    leading: const Icon(Icons.delete, color: Colors.red),
-                                                    title: const Text('Delete Message', style: TextStyle(color: Colors.red)),
-                                                    onTap: () {
-                                                      Navigator.pop(context);
-                                                      showDialog(
-                                                        context: context,
-                                                        builder: (context) => AlertDialog(
-                                                          title: const Text('Delete Message'),
-                                                          content: const Text('Are you sure you want to delete this message?'),
-                                                          actions: [
-                                                            TextButton(
-                                                              onPressed: () => Navigator.pop(context),
-                                                              child: const Text('Cancel'),
-                                                            ),
-                                                            TextButton(
-                                                              onPressed: () {
-                                                                Navigator.pop(context);
-                                                                _deleteMessage(messageId);
-                                                              },
-                                                              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                                            ),
-                                                          ],
+                                          onLongPress: isMe
+                                              ? () {
+                                                  showModalBottomSheet(
+                                                    context: context,
+                                                    builder: (context) =>
+                                                        Column(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        ListTile(
+                                                          leading: const Icon(
+                                                              Icons.edit),
+                                                          title: const Text(
+                                                              'Edit Message'),
+                                                          onTap: () {
+                                                            Navigator.pop(
+                                                                context);
+                                                            _startEditing(
+                                                                messageId,
+                                                                message[
+                                                                    'text']);
+                                                          },
                                                         ),
-                                                      );
-                                                    },
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          } : null,
+                                                        ListTile(
+                                                          leading: const Icon(
+                                                              Icons.delete,
+                                                              color:
+                                                                  Colors.red),
+                                                          title: const Text(
+                                                              'Delete Message'),
+                                                          onTap: () {
+                                                            Navigator.pop(
+                                                                context);
+                                                            showDialog(
+                                                              context: context,
+                                                              builder:
+                                                                  (context) =>
+                                                                      AlertDialog(
+                                                                title: const Text(
+                                                                    'Delete Message'),
+                                                                content: const Text(
+                                                                    'Are you sure you want to delete this message?'),
+                                                                actions: [
+                                                                  TextButton(
+                                                                    onPressed: () =>
+                                                                        Navigator.pop(
+                                                                            context),
+                                                                    child: const Text(
+                                                                        'Cancel'),
+                                                                  ),
+                                                                  TextButton(
+                                                                    onPressed:
+                                                                        () {
+                                                                      Navigator.pop(
+                                                                          context);
+                                                                      _deleteMessage(
+                                                                          messageId);
+                                                                    },
+                                                                    child: const Text(
+                                                                        'Delete',
+                                                                        style: TextStyle(
+                                                                            color:
+                                                                                Colors.red)),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            );
+                                                          },
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                }
+                                              : null,
                                           child: Container(
-                                            constraints: BoxConstraints(
-                                              maxWidth: MediaQuery.of(context).size.width * 0.7,
-                                            ),
                                             padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 10,
-                                            ),
+                                                horizontal: 16, vertical: 10),
                                             decoration: BoxDecoration(
-                                              color: isMe ? Colors.blue : Colors.white,
+                                              color: isMe
+                                                  ? Colors.blue
+                                                  : Colors.white,
                                               borderRadius: BorderRadius.only(
-                                                topLeft: const Radius.circular(20),
-                                                topRight: const Radius.circular(20),
-                                                bottomLeft: Radius.circular(isMe ? 20 : 5),
-                                                bottomRight: Radius.circular(isMe ? 5 : 20),
+                                                topLeft: Radius.circular(
+                                                    isMe ? 20 : 5),
+                                                topRight: Radius.circular(
+                                                    isMe ? 5 : 20),
+                                                bottomLeft: Radius.circular(20),
+                                                bottomRight:
+                                                    Radius.circular(20),
                                               ),
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color: Colors.black.withOpacity(0.1),
+                                                  color: Colors.black
+                                                      .withOpacity(0.1),
                                                   blurRadius: 4,
                                                   offset: const Offset(0, 2),
                                                 ),
                                               ],
                                             ),
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 if (!isMe) ...[
                                                   Text(
                                                     senderName,
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.grey[600],
-                                                      fontWeight: FontWeight.bold,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.black,
                                                     ),
                                                   ),
                                                   const SizedBox(height: 4),
@@ -684,39 +967,36 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 Text(
                                                   message['text'],
                                                   style: TextStyle(
-                                                    color: isMe ? Colors.white : Colors.black,
+                                                    color: isMe
+                                                        ? Colors.white
+                                                        : Colors.black,
                                                   ),
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Row(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
-                                                    if (isEdited) ...[
-                                                      Text(
-                                                        'edited',
-                                                        style: TextStyle(
-                                                          color: isMe ? Colors.white70 : Colors.grey[600],
-                                                          fontSize: 10,
-                                                          fontStyle: FontStyle.italic,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 4),
-                                                    ],
                                                     Text(
-                                                      message['timestamp'] != null
-                                                          ? DateFormat('hh:mm a').format(
-                                                              (message['timestamp'] as Timestamp).toDate(),
-                                                            )
-                                                          : '',
+                                                      DateFormat('hh:mm a')
+                                                          .format((message[
+                                                                      'timestamp']
+                                                                  as Timestamp)
+                                                              .toDate()),
                                                       style: TextStyle(
-                                                        color: isMe ? Colors.white70 : Colors.grey[600],
+                                                        color: isMe
+                                                            ? Colors.white70
+                                                            : Colors.grey[600],
                                                         fontSize: 10,
                                                       ),
                                                     ),
                                                     if (isMe) ...[
                                                       const SizedBox(width: 4),
                                                       Icon(
-                                                        messageStatus == 'sent' ? Icons.check : Icons.check_circle,
+                                                        messageStatus == 'sent'
+                                                            ? Icons.check
+                                                            : Icons
+                                                                .check_circle,
                                                         size: 12,
                                                         color: Colors.white70,
                                                       ),
@@ -733,7 +1013,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         CircleAvatar(
                                           radius: 16,
                                           backgroundColor: Colors.blue,
-                                          child: Icon(
+                                          child: const Icon(
                                             Icons.person,
                                             size: 16,
                                             color: Colors.white,
@@ -750,26 +1030,18 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: const Offset(0, -2),
-                            ),
-                          ],
-                        ),
                         child: Row(
                           children: [
                             if (_isEditing) ...[
                               IconButton(
-                                icon: const Icon(Icons.close, color: Colors.red),
+                                icon:
+                                    const Icon(Icons.close, color: Colors.red),
                                 onPressed: _cancelEditing,
                               ),
                             ] else ...[
                               IconButton(
-                                icon: const Icon(Icons.attach_file, color: Colors.blue),
+                                icon: const Icon(Icons.attach_file,
+                                    color: Colors.blue),
                                 onPressed: () {
                                   // Handle attachment
                                 },
@@ -779,7 +1051,9 @@ class _ChatScreenState extends State<ChatScreen> {
                               child: TextField(
                                 controller: _messageController,
                                 decoration: InputDecoration(
-                                  hintText: _isEditing ? 'Edit message...' : 'Type a message...',
+                                  hintText: _isEditing
+                                      ? 'Edit message...'
+                                      : 'Type a message...',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(25),
                                     borderSide: BorderSide.none,
@@ -792,7 +1066,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                   ),
                                 ),
                                 maxLines: null,
-                                onSubmitted: (_) => _isEditing ? _updateMessage() : sendMessage(),
+                                onSubmitted: (_) => _isEditing
+                                    ? _updateMessage()
+                                    : sendMessage(),
                               ),
                             ),
                             IconButton(
@@ -800,7 +1076,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                 _isEditing ? Icons.check : Icons.send,
                                 color: Colors.blue,
                               ),
-                              onPressed: _isEditing ? _updateMessage : sendMessage,
+                              onPressed:
+                                  _isEditing ? _updateMessage : sendMessage,
                             ),
                           ],
                         ),
@@ -816,4 +1093,4 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     super.dispose();
   }
-} 
+}

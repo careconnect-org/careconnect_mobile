@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'appointment_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
-import 'home_screen.dart'; 
+import 'home_screen.dart';
 
 class BottomScreen extends StatefulWidget {
   @override
@@ -29,17 +29,14 @@ class _BottomScreenState extends State<BottomScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-     
       body: _screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(
               icon: Icon(Icons.calendar_today), label: 'Appointment'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history), label: 'History'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Messages'),
           BottomNavigationBarItem(
               icon: Icon(Icons.person_outline), label: 'Profile'),
         ],

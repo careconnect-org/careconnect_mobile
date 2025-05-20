@@ -2,7 +2,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 
 class SecureStorageService {
-  static final SecureStorageService _instance = SecureStorageService._internal();
+  static final SecureStorageService _instance =
+      SecureStorageService._internal();
   factory SecureStorageService() => _instance;
 
   SecureStorageService._internal();
@@ -20,6 +21,7 @@ class SecureStorageService {
   static const String _userImageKey = 'user_image';
   static const String _emailVerifiedKey = 'email_verified';
   static const String _userEmailKey = 'user_email';
+
   static const String _userPasswordKey = 'user_password';
 
   // Save authentication data
@@ -30,10 +32,10 @@ class SecureStorageService {
     try {
       // Save token
       await _storage.write(key: _authTokenKey, value: token);
-      
+
       // Save user data
       await _storage.write(key: _userDataKey, value: jsonEncode(userData));
-      
+
       // Save individual user fields for quick access
       if (userData['_id'] != null) {
         await _storage.write(key: _userIdKey, value: userData['_id']);
@@ -166,6 +168,15 @@ class SecureStorageService {
     }
   }
 
+  Future<String?> getUserName() async {
+    try {
+      return await _storage.read(key: _usernameKey);
+    } catch (e) {
+      print('Error getting user email: $e');
+      return null;
+    }
+  }
+
   // Get user password
   Future<String?> getUserPassword() async {
     try {
@@ -175,4 +186,4 @@ class SecureStorageService {
       return null;
     }
   }
-} 
+}
