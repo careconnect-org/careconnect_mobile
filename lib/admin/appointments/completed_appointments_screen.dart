@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'appointment_utils.dart';
 import 'appointment_detail_screen.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class CompletedAppointmentsScreen extends StatefulWidget {
   const CompletedAppointmentsScreen({super.key});
@@ -41,8 +42,7 @@ class _CompletedAppointmentsScreenState
       isLoading = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     try {
@@ -155,8 +155,7 @@ class _CompletedAppointmentsScreenState
       isLoading = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     // Create filter parameters

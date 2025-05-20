@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class SecurityScreen extends StatefulWidget {
   const SecurityScreen({Key? key}) : super(key: key);
@@ -23,13 +23,17 @@ class _SecurityScreenState extends State<SecurityScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    final localStorage = LocalStorageService();
+    final biometricEnabled = await localStorage.getBiometricEnabled();
+    final twoFactorEnabled = await localStorage.getTwoFactorEnabled();
+    final darkMode = await localStorage.getDarkMode();
+    
     setState(() {
-      _isBiometricEnabled = prefs.getBool('biometric_enabled') ?? false;
-      _isTwoFactorEnabled = prefs.getBool('two_factor_enabled') ?? false;
-      _isDarkMode = prefs.getBool('dark_mode') ?? false;
-      _authToken = prefs.getString('auth_token');
+      _isBiometricEnabled = biometricEnabled ?? false;
+      _isTwoFactorEnabled = twoFactorEnabled ?? false;
+      _isDarkMode = darkMode ?? false;
     });
+    _authToken = await LocalStorageService.getAuthToken();
   }
 
   Future<void> _changePassword(
@@ -57,19 +61,46 @@ class _SecurityScreenState extends State<SecurityScreen> {
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password changed successfully')),
+          const SnackBar(
+            content: Text('Password changed successfully'),
+            backgroundColor: Colors.green,
+          ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Failed to change password: ${response.body}')),
-        );
+        throw Exception('Failed to change password');
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
+  }
+
+  Future<void> _toggleBiometric(bool value) async {
+    final localStorage = LocalStorageService();
+    await localStorage.setBiometricEnabled(value);
+    setState(() {
+      _isBiometricEnabled = value;
+    });
+  }
+
+  Future<void> _toggleTwoFactor(bool value) async {
+    final localStorage = LocalStorageService();
+    await localStorage.setTwoFactorEnabled(value);
+    setState(() {
+      _isTwoFactorEnabled = value;
+    });
+  }
+
+  Future<void> _toggleDarkMode(bool value) async {
+    final localStorage = LocalStorageService();
+    await localStorage.setDarkMode(value);
+    setState(() {
+      _isDarkMode = value;
+    });
   }
 
   void _showChangePasswordDialog() {
@@ -273,13 +304,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                 subtitle: 'Use fingerprint or face ID to log in',
                 trailing: Switch(
                   value: _isBiometricEnabled,
-                  onChanged: (value) async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('biometric_enabled', value);
-                    setState(() {
-                      _isBiometricEnabled = value;
-                    });
-                  },
+                  onChanged: _toggleBiometric,
                 ),
               ),
               _buildSecurityOption(
@@ -288,13 +313,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                 subtitle: 'Add an extra layer of security',
                 trailing: Switch(
                   value: _isTwoFactorEnabled,
-                  onChanged: (value) async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('two_factor_enabled', value);
-                    setState(() {
-                      _isTwoFactorEnabled = value;
-                    });
-                  },
+                  onChanged: _toggleTwoFactor,
                 ),
               ),
             ],
@@ -337,13 +356,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                 subtitle: 'Switch between light and dark theme',
                 trailing: Switch(
                   value: _isDarkMode,
-                  onChanged: (value) async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('dark_mode', value);
-                    setState(() {
-                      _isDarkMode = value;
-                    });
-                  },
+                  onChanged: _toggleDarkMode,
                 ),
               ),
             ],

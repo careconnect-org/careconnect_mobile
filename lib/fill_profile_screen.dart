@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http; // Added missing http import
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class FillProfileScreen extends StatefulWidget {
   const FillProfileScreen({Key? key}) : super(key: key);
@@ -160,7 +161,10 @@ class _FillProfileScreenState extends State<FillProfileScreen> {
         if (response.statusCode == 200 || response.statusCode == 201) {
           // Successfully created user
           if (responseData['token'] != null) {
-            await prefs.setString('auth_token', responseData['token']);
+            await LocalStorageService.saveAuthData(
+              token: responseData['token'],
+              userData: responseData['user'] ?? {},
+            );
           }
 
           ScaffoldMessenger.of(context).showSnackBar(

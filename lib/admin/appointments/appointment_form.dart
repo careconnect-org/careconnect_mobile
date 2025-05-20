@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../../services/notification_service.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class AppointmentForm extends StatefulWidget {
   final Map<String, dynamic>? appointment;
@@ -79,8 +80,7 @@ class _AppointmentFormState extends State<AppointmentForm> {
       _isLoadingDoctors = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please login to view doctors')),
@@ -181,8 +181,7 @@ class _AppointmentFormState extends State<AppointmentForm> {
       _isLoadingPatients = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please login to view patients')),
@@ -338,8 +337,7 @@ class _AppointmentFormState extends State<AppointmentForm> {
       _isLoading = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     try {

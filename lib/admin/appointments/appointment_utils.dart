@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_service.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class AppointmentUtils {
   // Show confirmation dialog for deleting an appointment
@@ -41,8 +42,7 @@ class AppointmentUtils {
   static Future<bool> _deleteAppointment(
       BuildContext context, String appointmentId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
+      final token = await LocalStorageService.getAuthToken();
       if (token == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -126,8 +126,7 @@ class AppointmentUtils {
   static Future<bool> updateAppointmentStatus(
       BuildContext context, String id, String newStatus) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
+      final token = await LocalStorageService.getAuthToken();
       if (token == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

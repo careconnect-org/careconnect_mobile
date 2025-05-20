@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'chat_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class AvailableDoctorsScreen extends StatefulWidget {
   const AvailableDoctorsScreen({Key? key}) : super(key: key);
@@ -19,8 +19,7 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
 
   Future<String?> _getAuthToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
+      final token = await LocalStorageService.getAuthToken();
       print('Retrieved token: ${token != null ? 'Token exists' : 'No token found'}');
       return token;
     } catch (e) {
@@ -208,7 +207,7 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                doctor['name'],
+                                                doctor['id'],
                                                 style: const TextStyle(
                                                   fontSize: 18,
                                                   fontWeight: FontWeight.bold,

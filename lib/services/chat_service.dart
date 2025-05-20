@@ -2,16 +2,79 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/message.dart';
 import 'notification_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'local_storage_service.dart';
 
 class ChatService {
   static final ChatService _instance = ChatService._internal();
   factory ChatService() => _instance;
+  
+  late String? chatUserId;
+  
+  ChatService._internal() {
+    _initializeUserRole();
+  }
 
-  ChatService._internal();
+  Future<void> _initializeUserRole() async {
+    chatUserId = await LocalStorageService.getUserId();
+    print('User role from storage: $chatUserId');
+  }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final NotificationService _notificationService = NotificationService();
+
+  String? get currentUserId => _auth.currentUser?.uid;
+
+  // Get all users in the system
+  Stream<List<Map<String, dynamic>>> getAllUsers() {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) throw Exception('User not authenticated');
+
+      return _firestore
+          .collection('users')
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'firstName': data['firstName'] ?? '',
+            'lastName': data['lastName'] ?? '',
+            'email': data['email'] ?? '',
+            'image': data['image'] ?? '',
+            'role': data['role'] ?? 'user',
+          };
+        }).toList();
+      });
+    } catch (e) {
+      print('Error getting users: $e');
+      rethrow;
+    }
+  }
+
+  // Get user details by ID
+  Future<Map<String, dynamic>?> getUserById(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (!doc.exists) return null;
+
+      final data = doc.data()!;
+      return {
+        'id': doc.id,
+        'firstName': data['firstName'] ?? '',
+        'lastName': data['lastName'] ?? '',
+        'email': data['email'] ?? '',
+        'image': data['image'] ?? '',
+        'role': data['role'] ?? 'user',
+      };
+    } catch (e) {
+      print('Error getting user: $e');
+      rethrow;
+    }
+  }
 
   // Generate a unique chat channel ID for two users
   String getChatChannelId(String userId1, String userId2) {
@@ -32,9 +95,25 @@ class ChatService {
       final chatDoc = await _firestore.collection('chats').doc(channelId).get();
       
       if (!chatDoc.exists) {
+        // Get user details for both users
+        final currentUserData = await getUserById(currentUser.uid);
+        final otherUserData = await getUserById(otherUserId);
+
+        if (currentUserData == null || otherUserData == null) {
+          throw Exception('User data not found');
+        }
+
         // Create new chat channel
         await _firestore.collection('chats').doc(channelId).set({
           'participants': [currentUser.uid, otherUserId],
+          'participantNames': {
+            currentUser.uid: '${currentUserData['firstName']} ${currentUserData['lastName']}',
+            otherUserId: '${otherUserData['firstName']} ${otherUserData['lastName']}',
+          },
+          'participantImages': {
+            currentUser.uid: currentUserData['image'],
+            otherUserId: otherUserData['image'],
+          },
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
           'lastMessage': '',
@@ -291,6 +370,23 @@ class ChatService {
     } catch (e) {
       print('Error deleting chat room: $e');
       rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAllUsersFromApi() async {
+    final response = await http.get(
+      Uri.parse('https://careconnect-api-v2kw.onrender.com/api/user/all'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> users = json.decode(response.body);
+      return users.map((user) => user as Map<String, dynamic>).toList();
+    } else {
+      throw Exception('Failed to load users');
     }
   }
 } 

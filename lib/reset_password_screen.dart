@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'login-screen.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String token;
@@ -52,29 +53,29 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
       if (response.statusCode == 200) {
         setState(() {
-          _successMessage = 'Password has been reset successfully.';
+          _successMessage = 'Password reset successful. Please login with your new password.';
         });
-        // Navigate to login screen after 2 seconds
+        // Clear any existing auth data
+        await LocalStorageService.clearAllData();
+        
+        // Navigate to login screen after a short delay
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) {
-            Navigator.pushAndRemoveUntil(
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const LoginScreen()),
-              (route) => false,
             );
           }
         });
       } else {
         final errorData = jsonDecode(response.body);
         setState(() {
-          _errorMessage = errorData['message'] ??
-              'Failed to reset password. Please try again.';
+          _errorMessage = errorData['message'] ?? 'Failed to reset password. Please try again.';
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage =
-            'An error occurred. Please check your internet connection and try again.';
+        _errorMessage = 'An error occurred. Please check your internet connection and try again.';
       });
     } finally {
       setState(() {

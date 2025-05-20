@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 import 'patient_create_screen.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
@@ -66,8 +66,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final authToken = prefs.getString('auth_token');
+      final authToken = await LocalStorageService.getAuthToken();
 
       if (authToken == null) {
         throw Exception('Authentication token not found');
@@ -95,7 +94,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
             ),
           );
           // Save verification status
-          await prefs.setBool('email_verified', true);
+          await LocalStorageService.setEmailVerified(true);
           
           Navigator.pushReplacement(
             context,
@@ -131,8 +130,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final authToken = prefs.getString('auth_token');
+      final authToken = await LocalStorageService.getAuthToken();
 
       if (authToken == null) {
         throw Exception('Authentication token not found');
@@ -140,7 +138,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
       final response = await http.post(
         Uri.parse(
-            'https://careconnect-api-v2kw.onrender.com/api/user/resend-otp'),
+            'https://careconnect-api-v2kw.onrender.com/api/user/resendotp'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $authToken',
@@ -151,7 +149,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       );
 
       if (response.statusCode == 200) {
-        _startResendTimer();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -159,6 +156,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               backgroundColor: Colors.green,
             ),
           );
+          _startResendTimer();
         }
       } else {
         throw Exception('Failed to resend OTP: ${response.body}');

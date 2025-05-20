@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_service.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class AppointmentDetailScreen extends StatefulWidget {
   final Map<String, dynamic> appointment;
@@ -87,8 +88,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
       _isLoading = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     try {

@@ -7,6 +7,7 @@ import 'appointment_form.dart';
 import 'appointment_utils.dart';
 import 'appointment_detail_screen.dart';
 import '../../services/notification_service.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
 class UpcomingAppointmentsScreen extends StatefulWidget {
   const UpcomingAppointmentsScreen({super.key});
@@ -42,8 +43,7 @@ class _UpcomingAppointmentsScreenState
       isLoading = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     try {
@@ -157,8 +157,7 @@ class _UpcomingAppointmentsScreenState
       isLoading = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     // Create filter parameters
@@ -620,8 +619,7 @@ class _UpcomingAppointmentsScreenState
       isLoading = true;
     });
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     try {
@@ -869,8 +867,7 @@ class _UpcomingAppointmentsScreenState
   Future<void> _sendNewAppointmentNotification() async {
     try {
       // Get the most recently created appointment
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
+      final token = await LocalStorageService.getAuthToken();
       if (token == null) return;
 
       final response = await http.get(

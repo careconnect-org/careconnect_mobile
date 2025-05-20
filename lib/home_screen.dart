@@ -1,7 +1,7 @@
 import 'package:careconnect/FoodsScreen.dart';
 import 'package:careconnect/SportsScreen.dart';
 import 'package:flutter/material.dart';
-import 'favorite_doctor_screen.dart';
+// import 'favorite_doctor_screen.dart';
 import 'notification_screen.dart';
 import 'package:careconnect/doctorscreen.dart';
 import 'HealthScreen.dart';
@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'screens/chat_list_screen.dart';
+import 'my_favorite_doctor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -155,22 +156,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          IconButton(
-            icon: const Icon(Icons.message_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => ChatListScreen(),
-                ),
-              );
-            },
-          ),
+          // IconButton(
+          //   icon: const Icon(Icons.message_outlined),
+          //   onPressed: () {
+          //     Navigator.of(context).push(
+          //       MaterialPageRoute(
+          //         builder: (context) => ChatListScreen(),
+          //       ),
+          //     );
+          //   },
+          // ),
           IconButton(
             icon: const Icon(Icons.favorite_border),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                    builder: (context) => MyFavoriteDoctorScreen()),
+                    builder: (context) => const MyFavoriteDoctorScreen()),
               );
             },
           ),
