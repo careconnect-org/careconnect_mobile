@@ -12,7 +12,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 7), () {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const WalkthroughScreens()),
       );

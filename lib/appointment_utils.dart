@@ -172,4 +172,3 @@ class AppointmentUtils {
 
   // ...existing code...
 }
-```

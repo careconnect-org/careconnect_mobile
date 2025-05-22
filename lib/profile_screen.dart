@@ -28,7 +28,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<Map<String, dynamic>?> getUserData() async {
     try {
-      // First try to get data from local storage
       final localUserData = await LocalStorageService.getUserData();
       final authToken = await LocalStorageService.getAuthToken();
 
@@ -37,7 +36,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       try {
-        // Then fetch the user profile including the image
         final response = await http.get(
           Uri.parse(
               'https://careconnect-api-v2kw.onrender.com/api/user/profile/${localUserData['_id']}'),
@@ -53,21 +51,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (response.statusCode == 200) {
           final profileData = jsonDecode(response.body);
           print('Profile Data: $profileData');
-          
-          // Update local storage with fresh data
+
           await LocalStorageService.saveAuthData(
             token: authToken,
             userData: profileData,
           );
-          
+
           return profileData;
         } else {
-          // If API call fails, return cached data
           return localUserData;
         }
       } catch (e) {
         print('Error fetching profile: $e');
-        // Return cached data if network request fails
         return localUserData;
       }
     } catch (e) {
@@ -87,11 +82,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         userData = fetchedUserData;
         profileImageUrl = fetchedUserData['image'] as String?;
-        print('Setting profile image URL: $profileImageUrl');
         _isLoading = false;
       });
     } else {
-      print('No user data found');
       setState(() {
         _isLoading = false;
       });
@@ -234,27 +227,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         throw Exception('User ID not found');
       }
 
-      print('Attempting logout with token: $authToken');
-      print('User ID: $userId');
-
       final response = await http.post(
         Uri.parse('https://careconnect-api-v2kw.onrender.com/api/user/logout'),
         headers: {
           'Authorization': 'Bearer $authToken',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'userId': userId,
-        }),
+        body: jsonEncode({'userId': userId}),
       );
 
-      print('Logout response status: ${response.statusCode}');
-      print('Logout response body: ${response.body}');
-
       if (response.statusCode == 200 || response.statusCode == 401) {
-        // Clear all stored data
         await LocalStorageService.clearAllData();
-
         if (mounted) {
           Navigator.pop(context);
           Navigator.of(context).pushAndRemoveUntil(
@@ -263,11 +246,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
       } else {
-        throw Exception('Failed to logout: ${response.statusCode} - ${response.body}');
+        throw Exception(
+            'Failed to logout: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('Error during logout: $e');
-      // Even if the API call fails, clear local data and redirect to login
       await LocalStorageService.clearAllData();
       if (mounted) {
         Navigator.pop(context);
@@ -301,7 +283,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : userData != null
-                ? Padding(
+                ? SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Column(
                       children: [

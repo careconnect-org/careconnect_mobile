@@ -1,3 +1,4 @@
+import 'package:careconnect/admin/admin_message_history_screen.dart';
 import 'package:careconnect/admin/appointment_admin_screen.dart';
 import 'package:careconnect/admin/admin_health_recommendation_screen.dart';
 import 'package:careconnect/history_screen.dart';
@@ -28,7 +29,7 @@ class _AdminBottomScreenState extends State<AdminBottomScreen> {
   final List<Widget> _screens = [
     AppointmentadminScreen(),
     AdminHealthRecommendationScreen(),
-    MessageHistoryScreen(),
+    AdminMessageHistoryScreen(),
     ProfileScreen(),
   ];
 
@@ -57,8 +58,8 @@ class _AdminBottomScreenState extends State<AdminBottomScreen> {
             label: 'Recommendations',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'History',
+            icon: Icon(Icons.message),
+            label: 'Messages',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

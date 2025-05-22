@@ -8,6 +8,143 @@ import 'appointment_form.dart';
 import 'appointment_detail_screen.dart';
 import 'package:careconnect/services/local_storage_service.dart';
 
+/// Utility to fetch and cache usernames by user ID
+class UserFetcher {
+  static final Map<String, String> _usernameCache = {};
+  static List<Map<String, dynamic>>? _doctorsCache;
+  static DateTime? _lastFetchTime;
+
+  static Future<void> _fetchDoctors(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/doctor/all'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is Map && data.containsKey('doctors')) {
+          _doctorsCache = List<Map<String, dynamic>>.from(data['doctors']);
+          _lastFetchTime = DateTime.now();
+          
+          // Pre-populate username cache
+          for (var doctor in _doctorsCache!) {
+            if (doctor['user'] != null && doctor['user'] is Map) {
+              final userId = doctor['user']['_id'];
+              final username = doctor['user']['username'] ?? 
+                             doctor['user']['firstName'] ?? 
+                             'Unknown';
+              _usernameCache[userId] = username;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching doctors: $e');
+    }
+  }
+
+  static Future<String> getUsername(String userId, String token) async {
+    // Refresh cache if it's older than 5 minutes or doesn't exist
+    if (_doctorsCache == null || 
+        _lastFetchTime == null || 
+        DateTime.now().difference(_lastFetchTime!).inMinutes > 5) {
+      await _fetchDoctors(token);
+    }
+
+    // Check cache first
+    if (_usernameCache.containsKey(userId)) {
+      return _usernameCache[userId]!;
+    }
+
+    // If not in cache, try to find in doctors list
+    if (_doctorsCache != null) {
+      for (var doctor in _doctorsCache!) {
+        if (doctor['user'] != null && 
+            doctor['user'] is Map && 
+            doctor['user']['_id'] == userId) {
+          final username = doctor['user']['username'] ?? 
+                         doctor['user']['firstName'] ?? 
+                         'Unknown';
+          _usernameCache[userId] = username;
+          return username;
+        }
+      }
+    }
+
+    return 'Unknown';
+  }
+}
+
+/// Widget to show doctor's username (even if only an ID is provided)
+class DoctorUsernameText extends StatelessWidget {
+  final dynamic doctor;
+  final String token;
+
+  const DoctorUsernameText({super.key, required this.doctor, required this.token});
+
+  @override
+  Widget build(BuildContext context) {
+    if (doctor is Map) {
+      if (doctor['user'] is Map && doctor['user']['username'] != null) {
+        final username = doctor['user']['username'];
+        final specialization = doctor['specialization'] ?? '';
+        return Text('Dr. $username${specialization.isNotEmpty ? " - $specialization" : ""}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            overflow: TextOverflow.ellipsis);
+      } else if (doctor['user'] is String) {
+        // doctor['user'] is an ID
+        return _UsernameFuture(userId: doctor['user'], specialization: doctor['specialization'], token: token);
+      } else if (doctor['username'] != null) {
+        // Direct username in doctor object
+        final username = doctor['username'];
+        final specialization = doctor['specialization'] ?? '';
+        return Text('Dr. $username${specialization.isNotEmpty ? " - $specialization" : ""}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            overflow: TextOverflow.ellipsis);
+      }
+    } else if (doctor is String) {
+      // doctor is just an ID
+      return _UsernameFuture(userId: doctor, specialization: null, token: token);
+    }
+    return const Text('Dr. Unknown',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18));
+  }
+}
+
+class _UsernameFuture extends StatelessWidget {
+  final String userId;
+  final String? specialization;
+  final String token;
+
+  const _UsernameFuture({required this.userId, required this.specialization, required this.token});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: UserFetcher.getUsername(userId, token),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Text('Dr. ...',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18));
+        }
+        if (snapshot.hasError) {
+          return const Text('Dr. Unknown',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18));
+        }
+        final username = snapshot.data ?? 'Unknown';
+        return Text(
+            'Dr. $username${(specialization != null && specialization!.isNotEmpty) ? " - $specialization" : ""}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            overflow: TextOverflow.ellipsis);
+      },
+    );
+  }
+}
+
 class CancelledAppointmentsScreen extends StatefulWidget {
   const CancelledAppointmentsScreen({super.key});
 
@@ -48,8 +185,7 @@ class _CancelledAppointmentsScreenState
     try {
       // Get appointments with Cancelled status
       final response = await http.get(
-        Uri.parse(
-            'https://careconnect-api-v2kw.onrender.com/api/appointment/filter?status=Cancelled'),
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/appointment/all'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -65,8 +201,7 @@ class _CancelledAppointmentsScreenState
         if (responseData is List) {
           // If the response is already a list
           appointmentList = responseData;
-        } else if (responseData is Map &&
-            responseData.containsKey('appointments')) {
+        } else if (responseData is Map && responseData.containsKey('appointments')) {
           // If the response is a map with an 'appointments' key
           appointmentList = responseData['appointments'] as List<dynamic>;
         } else if (responseData is Map && responseData.containsKey('data')) {
@@ -87,8 +222,11 @@ class _CancelledAppointmentsScreenState
           }
         }
 
-        cancelledAppointments =
-            appointmentList.cast<Map<String, dynamic>>().toList();
+        // Filter for cancelled appointments
+        cancelledAppointments = appointmentList
+            .where((appointment) => appointment['status'] == 'Cancelled')
+            .cast<Map<String, dynamic>>()
+            .toList();
 
         // Extract unique doctor names
         Set<String> doctors = {};
@@ -502,13 +640,18 @@ class _CancelledAppointmentsScreenState
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(
-                      _getDoctorName(appointment),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                    child: FutureBuilder<String?>(
+                      future: LocalStorageService.getAuthToken(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Text('Dr. ...',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18));
+                        }
+                        return DoctorUsernameText(
+                          doctor: appointment['doctor'],
+                          token: snapshot.data!,
+                        );
+                      },
                     ),
                   ),
                   PopupMenuButton<String>(

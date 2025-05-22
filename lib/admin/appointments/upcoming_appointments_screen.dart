@@ -1,13 +1,150 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'appointment_form.dart';
 import 'appointment_utils.dart';
 import 'appointment_detail_screen.dart';
 import '../../services/notification_service.dart';
 import 'package:careconnect/services/local_storage_service.dart';
+
+/// Utility to fetch and cache usernames by user ID
+class UserFetcher {
+  static final Map<String, String> _usernameCache = {};
+  static List<Map<String, dynamic>>? _doctorsCache;
+  static DateTime? _lastFetchTime;
+
+  static Future<void> _fetchDoctors(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/doctor/all'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is Map && data.containsKey('doctors')) {
+          _doctorsCache = List<Map<String, dynamic>>.from(data['doctors']);
+          _lastFetchTime = DateTime.now();
+          
+          // Pre-populate username cache
+          for (var doctor in _doctorsCache!) {
+            if (doctor['user'] != null && doctor['user'] is Map) {
+              final userId = doctor['user']['_id'];
+              final username = doctor['user']['username'] ?? 
+                             doctor['user']['firstName'] ?? 
+                             'Unknown';
+              _usernameCache[userId] = username;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching doctors: $e');
+    }
+  }
+
+  static Future<String> getUsername(String userId, String token) async {
+    // Refresh cache if it's older than 5 minutes or doesn't exist
+    if (_doctorsCache == null || 
+        _lastFetchTime == null || 
+        DateTime.now().difference(_lastFetchTime!).inMinutes > 5) {
+      await _fetchDoctors(token);
+    }
+
+    // Check cache first
+    if (_usernameCache.containsKey(userId)) {
+      return _usernameCache[userId]!;
+    }
+
+    // If not in cache, try to find in doctors list
+    if (_doctorsCache != null) {
+      for (var doctor in _doctorsCache!) {
+        if (doctor['user'] != null && 
+            doctor['user'] is Map && 
+            doctor['user']['_id'] == userId) {
+          final username = doctor['user']['username'] ?? 
+                         doctor['user']['firstName'] ?? 
+                         'Unknown';
+          _usernameCache[userId] = username;
+          return username;
+        }
+      }
+    }
+
+    return 'Unknown';
+  }
+}
+
+/// Widget to show doctor's username (even if only an ID is provided)
+class DoctorUsernameText extends StatelessWidget {
+  final dynamic doctor;
+  final String token;
+
+  const DoctorUsernameText({super.key, required this.doctor, required this.token});
+
+  @override
+  Widget build(BuildContext context) {
+    if (doctor is Map) {
+      if (doctor['user'] is Map && doctor['user']['username'] != null) {
+        final username = doctor['user']['username'];
+        final specialization = doctor['specialization'] ?? '';
+        return Text('Dr. $username${specialization.isNotEmpty ? " - $specialization" : ""}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            overflow: TextOverflow.ellipsis);
+      } else if (doctor['user'] is String) {
+        // doctor['user'] is an ID
+        return _UsernameFuture(userId: doctor['user'], specialization: doctor['specialization'], token: token);
+      } else if (doctor['username'] != null) {
+        // Direct username in doctor object
+        final username = doctor['username'];
+        final specialization = doctor['specialization'] ?? '';
+        return Text('Dr. $username${specialization.isNotEmpty ? " - $specialization" : ""}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            overflow: TextOverflow.ellipsis);
+      }
+    } else if (doctor is String) {
+      // doctor is just an ID
+      return _UsernameFuture(userId: doctor, specialization: null, token: token);
+    }
+    return const Text('Dr. Unknown',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18));
+  }
+}
+
+class _UsernameFuture extends StatelessWidget {
+  final String userId;
+  final String? specialization;
+  final String token;
+
+  const _UsernameFuture({required this.userId, required this.specialization, required this.token});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: UserFetcher.getUsername(userId, token),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Text('Dr. ...',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18));
+        }
+        if (snapshot.hasError) {
+          return const Text('Dr. Unknown',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18));
+        }
+        final username = snapshot.data ?? 'Unknown';
+        return Text(
+            'Dr. $username${(specialization != null && specialization!.isNotEmpty) ? " - $specialization" : ""}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            overflow: TextOverflow.ellipsis);
+      },
+    );
+  }
+}
 
 class UpcomingAppointmentsScreen extends StatefulWidget {
   const UpcomingAppointmentsScreen({super.key});
@@ -31,11 +168,20 @@ class _UpcomingAppointmentsScreenState
     'Voice Call',
     'Messaging'
   ];
+  String? _token;
 
   @override
   void initState() {
     super.initState();
-    fetchUpcomingAppointments();
+    _initAndFetch();
+  }
+
+  Future<void> _initAndFetch() async {
+    final token = await LocalStorageService.getAuthToken();
+    setState(() {
+      _token = token;
+    });
+    await fetchUpcomingAppointments();
   }
 
   Future<void> fetchUpcomingAppointments() async {
@@ -43,11 +189,10 @@ class _UpcomingAppointmentsScreenState
       isLoading = true;
     });
 
-    final token = await LocalStorageService.getAuthToken();
+    final token = _token ?? await LocalStorageService.getAuthToken();
     if (token == null) return;
 
     try {
-      // First get all appointments and then filter for upcoming ones
       final response = await http.get(
         Uri.parse(
             'https://careconnect-api-v2kw.onrender.com/api/appointment/all'),
@@ -62,27 +207,20 @@ class _UpcomingAppointmentsScreenState
         final dynamic responseData = json.decode(response.body);
         List<dynamic> allAppointments = [];
 
-        // Handle different response formats (both Map and List)
         if (responseData is List) {
-          // If the response is already a list
           allAppointments = responseData;
         } else if (responseData is Map &&
             responseData.containsKey('appointments')) {
-          // If the response is a map with an 'appointments' key
           allAppointments = responseData['appointments'] as List<dynamic>;
         } else if (responseData is Map && responseData.containsKey('data')) {
-          // If the response is a map with a 'data' key
           allAppointments = responseData['data'] as List<dynamic>;
         } else if (responseData is Map) {
-          // If the response is a map but doesn't have standard keys, try to find a list
           for (var value in responseData.values) {
             if (value is List) {
               allAppointments = value;
               break;
             }
           }
-
-          // If we still couldn't find a list, create a single-item list with the map
           if (allAppointments.isEmpty && responseData.containsKey('_id')) {
             allAppointments = [responseData];
           }
@@ -102,23 +240,20 @@ class _UpcomingAppointmentsScreenState
           if (appt['doctor'] != null) {
             String doctorName = '';
             String specialization = '';
-            
+
             if (appt['doctor'] is Map) {
-              // Handle nested doctor object
               var doctorObj = appt['doctor'];
               if (doctorObj.containsKey('user') && doctorObj['user'] is Map) {
-                String firstName = doctorObj['user']['firstName'] ?? '';
-                String lastName = doctorObj['user']['lastName'] ?? '';
-                doctorName = '$firstName $lastName'.trim();
-              } else if (doctorObj.containsKey('user') && doctorObj['user'] is String) {
+                String username = doctorObj['user']['username'] ?? '';
+                doctorName = username;
+              } else if (doctorObj.containsKey('user') &&
+                  doctorObj['user'] is String) {
                 doctorName = doctorObj['user'];
               }
-              
               if (doctorObj.containsKey('specialization')) {
-                specialization = doctorObj['specialization'];
+                specialization = doctorObj['specialization'] ?? '';
               }
             } else {
-              // Handle simple string
               doctorName = appt['doctor'].toString();
             }
 
@@ -157,12 +292,11 @@ class _UpcomingAppointmentsScreenState
       isLoading = true;
     });
 
-    final token = await LocalStorageService.getAuthToken();
+    final token = _token ?? await LocalStorageService.getAuthToken();
     if (token == null) return;
 
-    // Create filter parameters
     Map<String, dynamic> filterParams = {
-      'status': 'Pending' // Multiple statuses
+      'status': 'Pending'
     };
 
     if (selectedDoctor != null && selectedDoctor != 'All') {
@@ -193,32 +327,24 @@ class _UpcomingAppointmentsScreenState
         final dynamic responseData = json.decode(response.body);
         List<dynamic> filteredAppointments = [];
 
-        // Handle different response formats (both Map and List)
         if (responseData is List) {
-          // If the response is already a list
           filteredAppointments = responseData;
         } else if (responseData is Map &&
             responseData.containsKey('appointments')) {
-          // If the response is a map with an 'appointments' key
           filteredAppointments = responseData['appointments'] as List<dynamic>;
         } else if (responseData is Map && responseData.containsKey('data')) {
-          // If the response is a map with a 'data' key
           filteredAppointments = responseData['data'] as List<dynamic>;
         } else if (responseData is Map) {
-          // If the response is a map but doesn't have standard keys, try to find a list
           for (var value in responseData.values) {
             if (value is List) {
               filteredAppointments = value;
               break;
             }
           }
-
-          // If we still couldn't find a list, create a single-item list with the map
           if (filteredAppointments.isEmpty && responseData.containsKey('_id')) {
             filteredAppointments = [responseData];
           }
         }
-
         setState(() {
           upcomingAppointments =
               filteredAppointments.cast<Map<String, dynamic>>().toList();
@@ -361,51 +487,23 @@ class _UpcomingAppointmentsScreenState
     );
   }
 
-  // Function to get doctor name from appointment
-  String _getDoctorName(Map<String, dynamic> appointment) {
-    if (appointment['doctor'] is Map) {
-      var doctor = appointment['doctor'];
-      String doctorName = '';
-      String specialization = '';
-
-      // Get doctor's name from user object
-      if (doctor.containsKey('user') && doctor['user'] is Map) {
-        String firstName = doctor['user']['firstName'] ?? '';
-        String lastName = doctor['user']['lastName'] ?? '';
-        doctorName = '$firstName $lastName'.trim();
-      }
-
-      // Get specialization
-      if (doctor.containsKey('specialization')) {
-        specialization = doctor['specialization'];
-      }
-
-      // Return combined name and specialization
-      if (doctorName.isNotEmpty && specialization.isNotEmpty) {
-        return 'Dr. $doctorName - $specialization';
-      } else if (doctorName.isNotEmpty) {
-        return 'Dr. $doctorName';
-      } else if (specialization.isNotEmpty) {
-        return 'Dr. Unknown - $specialization';
-      }
-      return 'Unknown Doctor';
-    }
-    return appointment['doctor']?.toString() ?? 'No doctor';
-  }
-
-  // Function to get patient name from appointment
   String _getPatientName(Map<String, dynamic> appointment) {
     if (appointment['patient'] is Map) {
       var patient = appointment['patient'];
       if (patient.containsKey('user')) {
-        return patient['user'] ?? 'Unknown User';
+        if (patient['user'] is Map) {
+          return patient['user']['username'] ?? patient['user']['firstName'] ?? 'Unknown User';
+        }
+        if (patient['user'] is String) {
+          return patient['user'];
+        }
+        return 'Unknown User';
       }
       return 'Unknown Patient';
     }
     return appointment['patient']?.toString() ?? 'No patient';
   }
 
-  // Build a custom appointment card for the new data structure
   Widget _buildAppointmentCard(Map<String, dynamic> appointment) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -413,7 +511,6 @@ class _UpcomingAppointmentsScreenState
       margin: const EdgeInsets.symmetric(vertical: 10),
       child: InkWell(
         onTap: () {
-          // Navigate to appointment detail screen
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -436,14 +533,12 @@ class _UpcomingAppointmentsScreenState
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(
-                      _getDoctorName(appointment),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    child: (_token == null)
+                        ? const Text('Dr. ...')
+                        : DoctorUsernameText(
+                            doctor: appointment['doctor'],
+                            token: _token!,
+                          ),
                   ),
                   PopupMenuButton<String>(
                     onSelected: (String value) async {
@@ -510,7 +605,6 @@ class _UpcomingAppointmentsScreenState
               const SizedBox(height: 8),
               Row(
                 children: [
-                  // Get icon based on specialization if available
                   appointment['doctor'] is Map &&
                           appointment['doctor'].containsKey('specialization')
                       ? _getSpecializationIcon(
@@ -563,7 +657,6 @@ class _UpcomingAppointmentsScreenState
     );
   }
 
-  // Format date string from ISO to readable format
   String _formatDate(dynamic date) {
     if (date == null) return 'No date';
 
@@ -582,7 +675,6 @@ class _UpcomingAppointmentsScreenState
     return date.toString();
   }
 
-  // Get icon based on doctor specialization
   Icon _getSpecializationIcon(String specialization) {
     switch (specialization.toLowerCase()) {
       case 'cardiologist':
@@ -613,7 +705,6 @@ class _UpcomingAppointmentsScreenState
     }
   }
 
-  // Update Status - Update appointment status using the specific status endpoint
   Future<void> updateAppointmentStatus(String id, String newStatus) async {
     setState(() {
       isLoading = true;
@@ -623,7 +714,6 @@ class _UpcomingAppointmentsScreenState
     if (token == null) return;
 
     try {
-      // First, get the appointment details to use in the notification
       final getResponse = await http.get(
         Uri.parse(
             'https://careconnect-api-v2kw.onrender.com/api/appointment/$id'),
@@ -648,7 +738,6 @@ class _UpcomingAppointmentsScreenState
       final appointmentData = json.decode(getResponse.body);
       Map<String, dynamic> appointment;
 
-      // Handle different response formats
       if (appointmentData is Map &&
           appointmentData.containsKey('appointment')) {
         appointment = appointmentData['appointment'];
@@ -659,7 +748,6 @@ class _UpcomingAppointmentsScreenState
         appointment = appointmentData;
       }
 
-      // Now update the status
       final response = await http.put(
         Uri.parse(
             'https://careconnect-api-v2kw.onrender.com/api/appointment/status/$id'),
@@ -678,12 +766,10 @@ class _UpcomingAppointmentsScreenState
           ),
         );
 
-        // Enhanced debugging for patient notification
         final patientInfo = _getPatientInfo(appointment);
         print(
             'Sending status update notification to patient: ${patientInfo['name']} (${patientInfo['id']})');
 
-        // Send notification for status change to both patient and doctor
         await NotificationService().sendAppointmentStatusChangedNotification(
           appointment,
           newStatus,
@@ -691,7 +777,6 @@ class _UpcomingAppointmentsScreenState
           sendToDoctor: true,
         );
 
-        // Refresh appointments
         fetchUpcomingAppointments();
       } else {
         final responseData = json.decode(response.body);
@@ -717,7 +802,6 @@ class _UpcomingAppointmentsScreenState
     }
   }
 
-  // Show status update options
   void _showStatusUpdateOptions(Map<String, dynamic> appointment) {
     showModalBottomSheet(
       context: context,
@@ -774,6 +858,96 @@ class _UpcomingAppointmentsScreenState
         );
       },
     );
+  }
+
+  Future<void> _sendNewAppointmentNotification() async {
+    try {
+      final token = await LocalStorageService.getAuthToken();
+      if (token == null) return;
+
+      final response = await http.get(
+        Uri.parse(
+            'https://careconnect-api-v2kw.onrender.com/api/appointment/recent'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        Map<String, dynamic> recentAppointment;
+
+        if (responseData is Map && responseData.containsKey('appointment')) {
+          recentAppointment = responseData['appointment'];
+        } else if (responseData is Map && responseData.containsKey('data')) {
+          recentAppointment = responseData['data'];
+        } else {
+          recentAppointment = responseData;
+        }
+
+        final patientInfo = _getPatientInfo(recentAppointment);
+        print(
+            'Sending notification to patient: ${patientInfo['name']} (${patientInfo['id']})');
+
+        await NotificationService().sendNewAppointmentNotification(
+          recentAppointment,
+          sendToPatient: true,
+          sendToDoctor: true,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Appointment created and notifications sent'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error sending new appointment notification: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error sending notification: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Map<String, dynamic> _getPatientInfo(Map<String, dynamic> appointment) {
+    String id = '';
+    String name = '';
+
+    try {
+      if (appointment['patient'] is Map) {
+        var patient = appointment['patient'];
+        if (patient.containsKey('_id')) {
+          id = patient['_id']?.toString() ?? '';
+        } else if (patient.containsKey('id')) {
+          id = patient['id']?.toString() ?? '';
+        } else if (patient.containsKey('userId')) {
+          id = patient['userId']?.toString() ?? '';
+        }
+
+        if (patient.containsKey('user')) {
+          name = patient['user']?.toString() ?? '';
+        } else if (patient.containsKey('name')) {
+          name = patient['name']?.toString() ?? '';
+        }
+      } else if (appointment['patientId'] != null) {
+        id = appointment['patientId']?.toString() ?? '';
+        name = appointment['patientName']?.toString() ?? '';
+      }
+      if (id.isEmpty && appointment['patient'] != null) {
+        id = appointment['patient'].toString();
+      }
+      if (name.isEmpty && appointment['patientName'] != null) {
+        name = appointment['patientName'].toString();
+      }
+    } catch (e) {
+      print('Error extracting patient info: $e');
+    }
+
+    return {'id': id, 'name': name};
   }
 
   @override
@@ -850,7 +1024,6 @@ class _UpcomingAppointmentsScreenState
                 );
 
                 if (result == true) {
-                  // Send notification about new appointment creation
                   await _sendNewAppointmentNotification();
                   fetchUpcomingAppointments();
                 }
@@ -861,103 +1034,5 @@ class _UpcomingAppointmentsScreenState
         ],
       ),
     );
-  }
-
-  // New method to send notification when appointment is created
-  Future<void> _sendNewAppointmentNotification() async {
-    try {
-      // Get the most recently created appointment
-      final token = await LocalStorageService.getAuthToken();
-      if (token == null) return;
-
-      final response = await http.get(
-        Uri.parse(
-            'https://careconnect-api-v2kw.onrender.com/api/appointment/recent'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        Map<String, dynamic> recentAppointment;
-
-        if (responseData is Map && responseData.containsKey('appointment')) {
-          recentAppointment = responseData['appointment'];
-        } else if (responseData is Map && responseData.containsKey('data')) {
-          recentAppointment = responseData['data'];
-        } else {
-          recentAppointment = responseData;
-        }
-
-        // Enhanced debugging for patient notification
-        final patientInfo = _getPatientInfo(recentAppointment);
-        print(
-            'Sending notification to patient: ${patientInfo['name']} (${patientInfo['id']})');
-
-        // Send notification for new appointment to both patient and doctor
-        await NotificationService().sendNewAppointmentNotification(
-          recentAppointment,
-          sendToPatient: true,
-          sendToDoctor: true,
-        );
-
-        // Show confirmation of notification
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Appointment created and notifications sent'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error sending new appointment notification: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error sending notification: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // Helper method to extract patient information for debugging
-  Map<String, dynamic> _getPatientInfo(Map<String, dynamic> appointment) {
-    String id = '';
-    String name = '';
-
-    try {
-      if (appointment['patient'] is Map) {
-        var patient = appointment['patient'];
-        if (patient.containsKey('_id')) {
-          id = patient['_id']?.toString() ?? '';
-        } else if (patient.containsKey('id')) {
-          id = patient['id']?.toString() ?? '';
-        } else if (patient.containsKey('userId')) {
-          id = patient['userId']?.toString() ?? '';
-        }
-
-        if (patient.containsKey('user')) {
-          name = patient['user']?.toString() ?? '';
-        } else if (patient.containsKey('name')) {
-          name = patient['name']?.toString() ?? '';
-        }
-      } else if (appointment['patientId'] != null) {
-        id = appointment['patientId']?.toString() ?? '';
-        name = appointment['patientName']?.toString() ?? '';
-      }
-
-      // Fallback for flat structure
-      if (id.isEmpty && appointment['patient'] != null) {
-        id = appointment['patient'].toString();
-      }
-      if (name.isEmpty && appointment['patientName'] != null) {
-        name = appointment['patientName'].toString();
-      }
-    } catch (e) {
-      print('Error extracting patient info: $e');
-    }
-
-    return {'id': id, 'name': name};
   }
 }

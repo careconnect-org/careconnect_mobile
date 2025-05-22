@@ -4,15 +4,15 @@ import 'dart:convert';
 import 'chat_screen.dart';
 import 'package:careconnect/services/local_storage_service.dart';
 
-class AvailableDoctorsScreen extends StatefulWidget {
-  const AvailableDoctorsScreen({Key? key}) : super(key: key);
+class AvailablePatientsScreen extends StatefulWidget {
+  const AvailablePatientsScreen({Key? key}) : super(key: key);
 
   @override
-  State<AvailableDoctorsScreen> createState() => _AvailableDoctorsScreenState();
+  State<AvailablePatientsScreen> createState() => _AvailablePatientsScreenState();
 }
 
-class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
-  List<Map<String, dynamic>> _doctors = [];
+class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
+  List<Map<String, dynamic>> _patients = [];
   bool _isLoading = true;
   String _error = '';
   String _searchQuery = '';
@@ -31,10 +31,10 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchDoctors();
+    _fetchPatients();
   }
 
-  Future<void> _fetchDoctors() async {
+  Future<void> _fetchPatients() async {
     try {
       setState(() {
         _isLoading = true;
@@ -46,14 +46,14 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
       
       if (token == null) {
         setState(() {
-          _error = 'Please login to view available doctors';
+          _error = 'Please login to view available patients';
           _isLoading = false;
         });
         return;
       }
 
       final response = await http.get(
-        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/doctor/all'),
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/patient/all'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -67,34 +67,31 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
       if (response.statusCode == 200) {
         try {
           final Map<String, dynamic> responseData = json.decode(response.body);
-          final List<dynamic> doctorsData = responseData['doctors'] ?? [];
+          final List<dynamic> patientsData = responseData['patients'] ?? [];
           
           setState(() {
-            _doctors = doctorsData.map((doctor) {
-              // Safely access nested user data with null checks
-              final userData = doctor['user'] as Map<String, dynamic>?;
-              final firstName = userData?['firstName']?.toString() ?? '';
-              final lastName = userData?['lastName']?.toString() ?? '';
-              
+            _patients = patientsData.map((patient) {
+              final user = patient['user'] ?? {};
               return {
-                'id': doctor['_id']?.toString() ?? '',
-                'name': '$firstName $lastName'.trim(),
-                'specialty': doctor['specialization']?.toString() ?? 'General',
-                'image': userData?['image']?.toString() ?? '',
-                'email': userData?['email']?.toString() ?? '',
-                'phone': userData?['phone']?.toString() ?? '',
-                'experience': doctor['yearsOfExperience']?.toString() ?? '0',
-                'qualification': doctor['qualification']?.toString() ?? '',
-                'availability': doctor['availability'] ?? true,
-                'hospital': doctor['hospital']?.toString() ?? 'Not specified',
-                'licenseNumber': doctor['licenseNumber']?.toString() ?? '',
+                'id': patient['_id']?.toString() ?? '',
+                'name': '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim(),
+                'email': user['email']?.toString() ?? '',
+                'phone': user['phoneNumber']?.toString() ?? '',
+                'image': user['image']?.toString() ?? '',
+                'age': _calculateAge(user['dateOfBirth']),
+                'gender': user['gender']?.toString() ?? 'Not specified',
+                'bloodType': patient['bloodType']?.toString() ?? 'Not specified',
+                'weight': patient['weight']?.toString() ?? 'Not specified',
+                'height': patient['height']?.toString() ?? 'Not specified',
+                'emergencyContact': patient['emergencyContact'] ?? {},
+                'insurance': patient['insurance'] ?? {},
               };
             }).toList();
             _isLoading = false;
           });
         } catch (e) {
           setState(() {
-            _error = 'Error parsing doctor data: $e';
+            _error = 'Error parsing patient data: $e';
             _isLoading = false;
           });
         }
@@ -105,7 +102,7 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
         });
       } else {
         setState(() {
-          _error = 'Failed to load doctors. Status code: ${response.statusCode}';
+          _error = 'Failed to load patients. Status code: ${response.statusCode}';
           _isLoading = false;
         });
       }
@@ -117,16 +114,32 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
     }
   }
 
-  List<Map<String, dynamic>> get _filteredDoctors {
-    if (_searchQuery.isEmpty) return _doctors;
-    return _doctors.where((doctor) {
-      final name = doctor['name'].toString().toLowerCase();
-      final specialty = doctor['specialty'].toString().toLowerCase();
-      final qualification = doctor['qualification'].toString().toLowerCase();
+  String _calculateAge(String? dateOfBirth) {
+    if (dateOfBirth == null) return 'Not specified';
+    try {
+      final birthDate = DateTime.parse(dateOfBirth);
+      final today = DateTime.now();
+      int age = today.year - birthDate.year;
+      if (today.month < birthDate.month || 
+          (today.month == birthDate.month && today.day < birthDate.day)) {
+        age--;
+      }
+      return age.toString();
+    } catch (e) {
+      return 'Not specified';
+    }
+  }
+
+  List<Map<String, dynamic>> get _filteredPatients {
+    if (_searchQuery.isEmpty) return _patients;
+    return _patients.where((patient) {
+      final name = patient['name'].toString().toLowerCase();
+      final email = patient['email'].toString().toLowerCase();
+      final phone = patient['phone'].toString().toLowerCase();
       final query = _searchQuery.toLowerCase();
       return name.contains(query) || 
-             specialty.contains(query) || 
-             qualification.contains(query);
+             email.contains(query) || 
+             phone.contains(query);
     }).toList();
   }
 
@@ -134,13 +147,13 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Available Doctors'),
+        title: const Text('Available Patients'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _fetchDoctors,
+            onPressed: _fetchPatients,
           ),
         ],
       ),
@@ -150,7 +163,7 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search by name, specialty, or qualification...',
+                hintText: 'Search by name, email, or phone...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -168,12 +181,12 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error.isNotEmpty
                     ? Center(child: Text(_error))
-                    : _filteredDoctors.isEmpty
-                        ? const Center(child: Text('No doctors found'))
+                    : _filteredPatients.isEmpty
+                        ? const Center(child: Text('No patients found'))
                         : ListView.builder(
-                            itemCount: _filteredDoctors.length,
+                            itemCount: _filteredPatients.length,
                             itemBuilder: (context, index) {
-                              final doctor = _filteredDoctors[index];
+                              final patient = _filteredPatients[index];
                               return Card(
                                 margin: const EdgeInsets.symmetric(
                                   horizontal: 16,
@@ -184,7 +197,9 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => ChatScreen(doctor: doctor),
+                                        builder: (context) => ChatScreen(
+                                          doctor: patient,
+                                        ),
                                       ),
                                     );
                                   },
@@ -194,10 +209,10 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                                       children: [
                                         CircleAvatar(
                                           radius: 30,
-                                          backgroundImage: doctor['image'] != null
-                                              ? NetworkImage(doctor['image'])
+                                          backgroundImage: patient['image'] != null
+                                              ? NetworkImage(patient['image'])
                                               : null,
-                                          child: doctor['image'] == null
+                                          child: patient['image'] == null
                                               ? const Icon(Icons.person, size: 30)
                                               : null,
                                         ),
@@ -207,7 +222,7 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                'Dr. ${doctor['name']}',
+                                                patient['name'],
                                                 style: const TextStyle(
                                                   fontSize: 18,
                                                   fontWeight: FontWeight.bold,
@@ -215,7 +230,7 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
-                                                doctor['specialty'],
+                                                patient['email'],
                                                 style: const TextStyle(
                                                   color: Colors.blue,
                                                   fontWeight: FontWeight.w500,
@@ -223,7 +238,7 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
-                                                doctor['qualification'],
+                                                patient['phone'],
                                                 style: const TextStyle(
                                                   color: Colors.grey,
                                                 ),
@@ -232,13 +247,26 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                                               Row(
                                                 children: [
                                                   const Icon(
-                                                    Icons.star,
-                                                    color: Colors.amber,
+                                                    Icons.person,
+                                                    color: Colors.blue,
+                                                    size: 16,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  // Text(
+                                                  //   '${patient['age']} years old',
+                                                  //   style: const TextStyle(
+                                                  //     color: Colors.grey,
+                                                  //   ),
+                                                  // ),
+                                                  const SizedBox(width: 16),
+                                                  const Icon(
+                                                    Icons.bloodtype,
+                                                    color: Colors.red,
                                                     size: 16,
                                                   ),
                                                   const SizedBox(width: 4),
                                                   Text(
-                                                    '${doctor['experience']} years experience',
+                                                    patient['bloodType'],
                                                     style: const TextStyle(
                                                       color: Colors.grey,
                                                     ),
