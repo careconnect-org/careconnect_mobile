@@ -331,7 +331,9 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Appointment Details'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        title: const Text('Appointment Details', style: TextStyle(color: Colors.white)),
         actions: [
           // Edit button
           IconButton(

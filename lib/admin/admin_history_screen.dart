@@ -1,21 +1,18 @@
-// import 'package:careconnect/available_patients_screen.dart';
-
-import 'chatdetailscreen.dart';
+import 'package:careconnect/available_patients_screen.dart';
+import 'package:careconnect/chatdetailscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:shared_preferences/shared_preferences.dart';
-import './available_doctors_screen.dart';
 
-class MessageHistoryScreen extends StatefulWidget {
-  const MessageHistoryScreen({Key? key}) : super(key: key);
+class AdminHistoryScreen extends StatefulWidget {
+  const AdminHistoryScreen({Key? key}) : super(key: key);
 
   @override
-  State<MessageHistoryScreen> createState() => _MessageHistoryScreenState();
+  State<AdminHistoryScreen> createState() => _AdminHistoryScreenState();
 }
 
-class _MessageHistoryScreenState extends State<MessageHistoryScreen>
+class _AdminHistoryScreenState extends State<AdminHistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   List<Map<String, dynamic>> chats = [];
@@ -43,14 +40,14 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen>
       appBar: AppBar(
         automaticallyImplyLeading: false,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: Colors.blue,
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.medical_services, color: Colors.white),
-            const SizedBox(width: 8),
-            const Text(
-              "History",
+            SizedBox(width: 8),
+            Text(
+              "Admin History",
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -110,7 +107,7 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen>
             ),
             const SizedBox(height: 16),
             const Text(
-              "Start a conversation with a doctor",
+              "Start a conversation with a patient",
               style: TextStyle(fontSize: 16, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
@@ -120,9 +117,8 @@ class _MessageHistoryScreenState extends State<MessageHistoryScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const AvailableDoctorsScreen(),
-                    // builder: (context) => const AvailablePatientsScreen(),
-                    ),
+                    builder: (context) => const AvailablePatientsScreen(),
+                  ),
                 );
               },
               child: const Text("Start New Chat"),

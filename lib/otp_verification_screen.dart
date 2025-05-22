@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:careconnect/services/local_storage_service.dart';
-import 'patient_create_screen.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   final String email;

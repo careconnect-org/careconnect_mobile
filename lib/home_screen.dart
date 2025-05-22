@@ -8,7 +8,7 @@ import 'HealthScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'screens/chat_list_screen.dart';
+// import 'screens/chat_list_screen.dart';
 import 'my_favorite_doctor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -230,7 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => DoctorsPage(selectedSpecialty: newValue),
+                          builder: (context) => DoctorsPage(),
                         ),
                       );
                     }
