@@ -86,9 +86,176 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+
+    print('ChatScreen initialized with doctor ID: ${widget.doctor['userId']}');
     _initializeUserRole().then((_) {
+      print('User role initialized with ID: $_chatSendId');
       _initializeChat();
     });
+  }
+
+  // Add this method to check if we need to migrate messages
+  Future<void> _checkAndMigrateChatRooms() async {
+    try {
+      if (_chatSendId == null) return;
+
+      print('Checking for chat rooms to migrate...');
+
+      // Search for all chat rooms where the user is a participant
+      final userChatsQuery = await _firestore
+          .collection('chatRooms')
+          .where('participants', arrayContains: _chatSendId)
+          .get();
+
+      // Check for chat rooms with the doctor
+      List<DocumentSnapshot> roomsWithDoctor = [];
+      for (var doc in userChatsQuery.docs) {
+        final data = doc.data();
+        if (data['participants'] != null &&
+            (data['participants'] as List).contains(widget.doctor['userId'])) {
+          roomsWithDoctor.add(doc);
+        }
+      }
+
+      // If we found multiple chat rooms with the same doctor, we need to merge them
+      if (roomsWithDoctor.length > 1) {
+        print(
+            'Found ${roomsWithDoctor.length} chat rooms with the same doctor. Need to merge.');
+
+        // Sort rooms by message count or creation time to find the primary one
+        final List<Map<String, dynamic>> roomsWithCounts = [];
+
+        for (var doc in roomsWithDoctor) {
+          final messagesQuery = await _firestore
+              .collection('chatRooms')
+              .doc(doc.id)
+              .collection('messages')
+              .get();
+
+          roomsWithCounts.add({
+            'roomId': doc.id,
+            'messageCount': messagesQuery.docs.length,
+            'data': doc.data(),
+          });
+        }
+
+        // Sort by message count (descending)
+        roomsWithCounts.sort((a, b) => b['messageCount'] - a['messageCount']);
+
+        // Select the room with the most messages as our primary
+        final primaryRoom = roomsWithCounts.first;
+        print(
+            'Selected primary room: ${primaryRoom['roomId']} with ${primaryRoom['messageCount']} messages');
+
+        // Generate the consistent chat room ID
+        List<String> ids = [widget.doctor['userId'], _chatSendId!];
+        ids.sort();
+        final consistentId = '${ids[0]}_${ids[1]}';
+
+        // If the primary room is not the consistent room, we need to create/update the consistent room
+        if (primaryRoom['roomId'] != consistentId) {
+          print(
+              'Primary room ID does not match consistent ID. Will migrate to: $consistentId');
+
+          // Create the consistent room if it doesn't exist
+          final consistentRoomDoc =
+              await _firestore.collection('chatRooms').doc(consistentId).get();
+          if (!consistentRoomDoc.exists) {
+            await _firestore.collection('chatRooms').doc(consistentId).set({
+              'participants': [_chatSendId, widget.doctor['userId']],
+              'lastMessage': primaryRoom['data']['lastMessage'] ?? '',
+              'lastMessageTime': primaryRoom['data']['lastMessageTime'] ??
+                  FieldValue.serverTimestamp(),
+              'lastMessageSender':
+                  primaryRoom['data']['lastMessageSender'] ?? _chatSendId,
+              'lastMessageSenderName': primaryRoom['data']
+                      ['lastMessageSenderName'] ??
+                  _senderName ??
+                  'User',
+              'status': 'active',
+              'unreadCount': 0,
+              'createdAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+              'migratedFrom': roomsWithDoctor.map((doc) => doc.id).toList(),
+            });
+            print('Created consistent chat room');
+          }
+
+          // Migrate messages from all rooms to the consistent room
+          int migratedCount = 0;
+          for (var room in roomsWithCounts) {
+            if (room['roomId'] == consistentId) continue;
+
+            final messagesQuery = await _firestore
+                .collection('chatRooms')
+                .doc(room['roomId'])
+                .collection('messages')
+                .get();
+
+            for (var msgDoc in messagesQuery.docs) {
+              final msgData = msgDoc.data();
+              await _firestore
+                  .collection('chatRooms')
+                  .doc(consistentId)
+                  .collection('messages')
+                  .add(msgData);
+              migratedCount++;
+            }
+
+            // Add a system message noting the migration
+            await _firestore
+                .collection('chatRooms')
+                .doc(consistentId)
+                .collection('messages')
+                .add({
+              'text': 'Chat history migrated from another conversation',
+              'senderId': 'system',
+              'senderName': 'System',
+              'timestamp': FieldValue.serverTimestamp(),
+              'isAdmin': true,
+              'type': 'system',
+              'status': 'sent',
+              'createdAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+
+            // Mark the old room as migrated
+            await _firestore
+                .collection('chatRooms')
+                .doc(room['roomId'])
+                .update({
+              'status': 'migrated',
+              'migratedTo': consistentId,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+
+          print('Migrated $migratedCount messages to consistent chat room');
+
+          // Update local chat room ID
+          _chatRoomId = consistentId;
+          await LocalStorageService.saveChatRoomId(
+              widget.doctor['userId'], consistentId);
+
+          // Update the message stream
+          _messagesStream = _firestore
+              .collection('chatRooms')
+              .doc(_chatRoomId)
+              .collection('messages')
+              .orderBy('timestamp', descending: true)
+              .snapshots();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Chat history has been synchronized'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error checking for chat rooms to migrate: $e');
+    }
   }
 
   Future<void> _initializeChat() async {
@@ -137,6 +304,9 @@ class _ChatScreenState extends State<ChatScreen> {
         print('Using generated chat room ID: $_chatRoomId');
       }
 
+      // ADDED: Check and migrate chat rooms if necessary
+      await _checkAndMigrateChatRooms();
+
       // Set up real-time listener for messages with proper ordering and persistence
       _messagesStream = _firestore
           .collection('chatRooms')
@@ -151,7 +321,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!chatRoomDoc.exists) {
         print('Creating new chat room...');
         await _firestore.collection('chatRooms').doc(_chatRoomId).set({
-          'participants': [identifier, widget.doctor['id']],
+          'participants': [identifier, widget.doctor['userId']],
           'lastMessage': '',
           'lastMessageTime': FieldValue.serverTimestamp(),
           'lastMessageSender': identifier,
@@ -247,7 +417,7 @@ class _ChatScreenState extends State<ChatScreen> {
         print('Chat room does not exist. Recreating...');
         // Create chat room if it doesn't exist
         await _firestore.collection('chatRooms').doc(_chatRoomId).set({
-          'participants': [senderId, widget.doctor['id']],
+          'participants': [senderId, widget.doctor['userId']],
           'lastMessage': '',
           'lastMessageTime': FieldValue.serverTimestamp(),
           'lastMessageSender': senderId,
@@ -264,7 +434,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final message = {
         'text': messageText,
         'senderId': senderId,
-        'receiverId': widget.doctor['id'],
+        'receiverId': widget.doctor['userId'],
         'senderName': userName,
         'timestamp': timestamp,
         'isAdmin': false,
@@ -455,46 +625,108 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<String> _getOrCreateConsistentChatRoomId() async {
+    // Try to get the stored chat room ID first
     final storedChatRoomId =
-        await LocalStorageService.getChatRoomId(widget.doctor['id']);
+        await LocalStorageService.getChatRoomId(widget.doctor['userId']);
     if (storedChatRoomId != null && storedChatRoomId.isNotEmpty) {
       print('Using stored chat room ID: $storedChatRoomId');
-      return storedChatRoomId;
+
+      // Verify this chat room actually exists
+      final storedRoomDoc =
+          await _firestore.collection('chatRooms').doc(storedChatRoomId).get();
+
+      if (storedRoomDoc.exists) {
+        return storedChatRoomId;
+      } else {
+        print('Stored chat room ID does not exist in Firestore');
+        // Clear the invalid stored ID
+        await LocalStorageService.saveChatRoomId(widget.doctor['userId'], '');
+      }
     }
 
+    // Generate a truly consistent chat room ID
+    List<String> ids = [
+      widget.doctor['userId'],
+      _chatSendId ?? _auth.currentUser?.uid ?? 'unknown'
+    ];
+    ids.sort(); // Sort alphabetically for consistency
+    final consistentId = '${ids[0]}_${ids[1]}';
+
+    print('Generated consistent ID: $consistentId');
+
     try {
+      // First check directly if this ID exists
+      final consistentRoomDoc =
+          await _firestore.collection('chatRooms').doc(consistentId).get();
+
+      if (consistentRoomDoc.exists) {
+        print('Found existing chat room directly with consistent ID');
+        await LocalStorageService.saveChatRoomId(
+            widget.doctor['userId'], consistentId);
+        return consistentId;
+      }
+
+      // If not found directly, check participants in both directions
       final userId = _chatSendId;
       if (userId != null) {
-        final querySnapshot = await _firestore
+        // Check rooms where current user is a participant
+        final userRoomsQuery = await _firestore
             .collection('chatRooms')
             .where('participants', arrayContains: userId)
             .get();
 
-        for (var doc in querySnapshot.docs) {
+        print(
+            'Found ${userRoomsQuery.docs.length} rooms where user is participant');
+
+        for (var doc in userRoomsQuery.docs) {
           final data = doc.data();
           if (data['participants'] != null &&
-              (data['participants'] as List).contains(widget.doctor['id'])) {
-            // Found existing chat room
-            print('Found existing chat room: ${doc.id}');
-            // Store it for future reference
+              (data['participants'] as List)
+                  .contains(widget.doctor['userId'])) {
+            print('Found existing chat room through user query: ${doc.id}');
             await LocalStorageService.saveChatRoomId(
-                widget.doctor['id'], doc.id);
+                widget.doctor['userId'], doc.id);
+            return doc.id;
+          }
+        }
+
+        // Also check rooms where doctor is a participant
+        final doctorRoomsQuery = await _firestore
+            .collection('chatRooms')
+            .where('participants', arrayContains: widget.doctor['userId'])
+            .get();
+
+        print(
+            'Found ${doctorRoomsQuery.docs.length} rooms where doctor is participant');
+
+        for (var doc in doctorRoomsQuery.docs) {
+          final data = doc.data();
+          if (data['participants'] != null &&
+              (data['participants'] as List).contains(userId)) {
+            print('Found existing chat room through doctor query: ${doc.id}');
+            await LocalStorageService.saveChatRoomId(
+                widget.doctor['userId'], doc.id);
             return doc.id;
           }
         }
       }
-    } catch (e) {
-      print('Error finding existing chat room: $e');
-    }
 
-    // Create a new deterministic chat room ID
-    final newChatRoomId =
-        '${widget.doctor['id']}_${_chatSendId ?? _auth.currentUser?.uid}';
-    print('Creating new chat room ID: $newChatRoomId');
-    // Store it for future reference
-    await LocalStorageService.saveChatRoomId(
-        widget.doctor['id'], newChatRoomId);
-    return newChatRoomId;
+      // If no existing room found, create a new one with our consistent ID
+      print(
+          'No existing chat room found, creating with consistent ID: $consistentId');
+
+      // Store the consistent ID for future reference
+      await LocalStorageService.saveChatRoomId(
+          widget.doctor['userId'], consistentId);
+      return consistentId;
+    } catch (e) {
+      print('Error in chat room ID creation: $e');
+
+      // Fallback to using our generated consistent ID
+      await LocalStorageService.saveChatRoomId(
+          widget.doctor['userId'], consistentId);
+      return consistentId;
+    }
   }
 
   // Fetch all messages (both sent and received)
@@ -504,6 +736,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return [];
     }
     try {
+      print('Fetching all messages for chat room: $_chatRoomId');
       final QuerySnapshot messagesSnapshot = await _firestore
           .collection('chatRooms')
           .doc(_chatRoomId)
@@ -511,6 +744,15 @@ class _ChatScreenState extends State<ChatScreen> {
           .orderBy('timestamp', descending: true)
           .get();
       print('Fetched ${messagesSnapshot.docs.length} messages');
+
+      // Debug information about senders
+      final senderIds = messagesSnapshot.docs
+          .map((doc) =>
+              (doc.data() as Map<String, dynamic>)['senderId'] as String?)
+          .where((id) => id != null)
+          .toSet();
+      print('Message sender IDs in this chat: $senderIds');
+      print('Current user ID: $_chatSendId');
 
       return messagesSnapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
@@ -650,6 +892,39 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  // Add a function to clear and reload the chat
+  Future<void> _reloadChat() async {
+    setState(() {
+      isLoading = true;
+      error = '';
+    });
+
+    try {
+      // Force re-fetching of chat room ID
+      await LocalStorageService.saveChatRoomId(widget.doctor['userId'], '');
+      _chatRoomId = await _getOrCreateConsistentChatRoomId();
+
+      print('Reloaded chat with room ID: $_chatRoomId');
+
+      // Re-setup messages stream
+      _messagesStream = _firestore
+          .collection('chatRooms')
+          .doc(_chatRoomId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .snapshots();
+
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        error = 'Failed to reload chat: $e';
+        isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -661,7 +936,7 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             const SizedBox(width: 10),
             Hero(
-              tag: 'doctor_${widget.doctor['id']}',
+              tag: 'doctor_${widget.doctor['userId']}',
               child: CircleAvatar(
                 backgroundImage: NetworkImage(widget.doctor['image'] ?? ''),
                 radius: 20,
@@ -710,6 +985,10 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _reloadChat,
+          ),
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: () {
@@ -782,6 +1061,17 @@ class _ChatScreenState extends State<ChatScreen> {
                   )
                 : Column(
                     children: [
+                      // Debug information bar
+                      Container(
+                        color: Colors.grey[200],
+                        padding: const EdgeInsets.all(4),
+                        child: Text(
+                          'Chat ID: $_chatRoomId',
+                          style:
+                              TextStyle(fontSize: 10, color: Colors.grey[600]),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                       Expanded(
                         child: StreamBuilder<QuerySnapshot>(
                           stream: _messagesStream,

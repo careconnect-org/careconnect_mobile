@@ -20,7 +20,8 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
   Future<String?> _getAuthToken() async {
     try {
       final token = await LocalStorageService.getAuthToken();
-      print('Retrieved token: ${token != null ? 'Token exists' : 'No token found'}');
+      print(
+          'Retrieved token: ${token != null ? 'Token exists' : 'No token found'}');
       return token;
     } catch (e) {
       print('Error getting token: $e');
@@ -42,8 +43,9 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
       });
 
       final token = await _getAuthToken();
-      print('Token for request: ${token != null ? 'Token exists' : 'No token'}');
-      
+      print(
+          'Token for request: ${token != null ? 'Token exists' : 'No token'}');
+
       if (token == null) {
         setState(() {
           _error = 'Please login to view available doctors';
@@ -68,16 +70,19 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
         try {
           final Map<String, dynamic> responseData = json.decode(response.body);
           final List<dynamic> doctorsData = responseData['doctors'] ?? [];
-          
+          print("_doctors%%%%%%%%%%%%%%%:$_doctors");
+          print("doctorsData%%%%%%%%%%%%%%%: $doctorsData");
+
           setState(() {
             _doctors = doctorsData.map((doctor) {
               // Safely access nested user data with null checks
               final userData = doctor['user'] as Map<String, dynamic>?;
               final firstName = userData?['firstName']?.toString() ?? '';
               final lastName = userData?['lastName']?.toString() ?? '';
-              
+
               return {
                 'id': doctor['_id']?.toString() ?? '',
+                'userId': userData?['_id']?.toString() ?? '',
                 'name': '$firstName $lastName'.trim(),
                 'specialty': doctor['specialization']?.toString() ?? 'General',
                 'image': userData?['image']?.toString() ?? '',
@@ -105,7 +110,8 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
         });
       } else {
         setState(() {
-          _error = 'Failed to load doctors. Status code: ${response.statusCode}';
+          _error =
+              'Failed to load doctors. Status code: ${response.statusCode}';
           _isLoading = false;
         });
       }
@@ -124,9 +130,9 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
       final specialty = doctor['specialty'].toString().toLowerCase();
       final qualification = doctor['qualification'].toString().toLowerCase();
       final query = _searchQuery.toLowerCase();
-      return name.contains(query) || 
-             specialty.contains(query) || 
-             qualification.contains(query);
+      return name.contains(query) ||
+          specialty.contains(query) ||
+          qualification.contains(query);
     }).toList();
   }
 
@@ -184,7 +190,8 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => ChatScreen(doctor: doctor),
+                                        builder: (context) =>
+                                            ChatScreen(doctor: doctor),
                                       ),
                                     );
                                   },
@@ -194,17 +201,20 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                                       children: [
                                         CircleAvatar(
                                           radius: 30,
-                                          backgroundImage: doctor['image'] != null
+                                          backgroundImage: doctor['image'] !=
+                                                  null
                                               ? NetworkImage(doctor['image'])
                                               : null,
                                           child: doctor['image'] == null
-                                              ? const Icon(Icons.person, size: 30)
+                                              ? const Icon(Icons.person,
+                                                  size: 30)
                                               : null,
                                         ),
                                         const SizedBox(width: 16),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 'Dr. ${doctor['name']}',
@@ -261,7 +271,7 @@ class _AvailableDoctorsScreenState extends State<AvailableDoctorsScreen> {
                           ),
           ),
         ],
-      ),
-    );
-  }
-} 
+     ),
+);
+}
+}

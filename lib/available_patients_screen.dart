@@ -8,7 +8,8 @@ class AvailablePatientsScreen extends StatefulWidget {
   const AvailablePatientsScreen({Key? key}) : super(key: key);
 
   @override
-  State<AvailablePatientsScreen> createState() => _AvailablePatientsScreenState();
+  State<AvailablePatientsScreen> createState() =>
+      _AvailablePatientsScreenState();
 }
 
 class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
@@ -20,7 +21,8 @@ class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
   Future<String?> _getAuthToken() async {
     try {
       final token = await LocalStorageService.getAuthToken();
-      print('Retrieved token: ${token != null ? 'Token exists' : 'No token found'}');
+      print(
+          'Retrieved token: ${token != null ? 'Token exists' : 'No token found'}');
       return token;
     } catch (e) {
       print('Error getting token: $e');
@@ -42,8 +44,9 @@ class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
       });
 
       final token = await _getAuthToken();
-      print('Token for request: ${token != null ? 'Token exists' : 'No token'}');
-      
+      print(
+          'Token for request: ${token != null ? 'Token exists' : 'No token'}');
+
       if (token == null) {
         setState(() {
           _error = 'Please login to view available patients';
@@ -68,19 +71,22 @@ class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
         try {
           final Map<String, dynamic> responseData = json.decode(response.body);
           final List<dynamic> patientsData = responseData['patients'] ?? [];
-          
+
           setState(() {
             _patients = patientsData.map((patient) {
               final user = patient['user'] ?? {};
               return {
                 'id': patient['_id']?.toString() ?? '',
-                'name': '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim(),
+                'userId': user?['_id']?.toString() ?? '',
+                'name': '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'
+                    .trim(),
                 'email': user['email']?.toString() ?? '',
                 'phone': user['phoneNumber']?.toString() ?? '',
                 'image': user['image']?.toString() ?? '',
                 'age': _calculateAge(user['dateOfBirth']),
                 'gender': user['gender']?.toString() ?? 'Not specified',
-                'bloodType': patient['bloodType']?.toString() ?? 'Not specified',
+                'bloodType':
+                    patient['bloodType']?.toString() ?? 'Not specified',
                 'weight': patient['weight']?.toString() ?? 'Not specified',
                 'height': patient['height']?.toString() ?? 'Not specified',
                 'emergencyContact': patient['emergencyContact'] ?? {},
@@ -102,7 +108,8 @@ class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
         });
       } else {
         setState(() {
-          _error = 'Failed to load patients. Status code: ${response.statusCode}';
+          _error =
+              'Failed to load patients. Status code: ${response.statusCode}';
           _isLoading = false;
         });
       }
@@ -120,7 +127,7 @@ class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
       final birthDate = DateTime.parse(dateOfBirth);
       final today = DateTime.now();
       int age = today.year - birthDate.year;
-      if (today.month < birthDate.month || 
+      if (today.month < birthDate.month ||
           (today.month == birthDate.month && today.day < birthDate.day)) {
         age--;
       }
@@ -137,9 +144,9 @@ class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
       final email = patient['email'].toString().toLowerCase();
       final phone = patient['phone'].toString().toLowerCase();
       final query = _searchQuery.toLowerCase();
-      return name.contains(query) || 
-             email.contains(query) || 
-             phone.contains(query);
+      return name.contains(query) ||
+          email.contains(query) ||
+          phone.contains(query);
     }).toList();
   }
 
@@ -209,17 +216,20 @@ class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
                                       children: [
                                         CircleAvatar(
                                           radius: 30,
-                                          backgroundImage: patient['image'] != null
+                                          backgroundImage: patient['image'] !=
+                                                  null
                                               ? NetworkImage(patient['image'])
                                               : null,
                                           child: patient['image'] == null
-                                              ? const Icon(Icons.person, size: 30)
+                                              ? const Icon(Icons.person,
+                                                  size: 30)
                                               : null,
                                         ),
                                         const SizedBox(width: 16),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 patient['name'],
@@ -292,4 +302,4 @@ class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
       ),
     );
   }
-} 
+}
