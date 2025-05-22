@@ -15,6 +15,7 @@ class SecureStorageService {
   static const String _userDataKey = 'user_data';
   static const String _userRoleKey = 'user_role';
   static const String _userIdKey = 'user_id';
+  // static const String _userKey = 'user_id';
   static const String _usernameKey = 'username';
   static const String _firstNameKey = 'first_name';
   static const String _lastNameKey = 'last_name';

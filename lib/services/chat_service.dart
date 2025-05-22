@@ -5,334 +5,539 @@ import 'notification_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'local_storage_service.dart';
+import 'package:uuid/uuid.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
+
+// Result wrapper for better error handling
+class ChatResult<T> {
+  final T? data;
+  final String? error;
+  final bool isSuccess;
+
+  ChatResult.success(this.data) : error = null, isSuccess = true;
+  ChatResult.failure(this.error) : data = null, isSuccess = false;
+}
+
+// Configuration class for chat settings
+class ChatConfig {
+  static const String usersCollection = 'users';
+  static const String chatsCollection = 'chats';
+  static const String messagesSubCollection = 'messages';
+  static const int messageLimit = 50;
+  static const Duration typingTimeout = Duration(seconds: 3);
+}
 
 class ChatService {
   static final ChatService _instance = ChatService._internal();
   factory ChatService() => _instance;
   
-  late String? chatUserId;
-  
   ChatService._internal() {
-    _initializeUserRole();
+    _initializeService();
   }
 
-  Future<void> _initializeUserRole() async {
-    chatUserId = await LocalStorageService.getUserId();
-    print('User role from storage: $chatUserId');
-  }
-
+  // Private fields
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final NotificationService _notificationService = NotificationService();
+  
+  String? _cachedUserId;
+  Map<String, Map<String, dynamic>> _userCache = {};
+  Timer? _typingTimer;
 
-  String? get currentUserId => _auth.currentUser?.uid;
+  // Getters
+  String? get currentUserId => _auth.currentUser?.uid ?? _cachedUserId;
+  bool get isAuthenticated => _auth.currentUser != null;
 
-  // Get all users in the system
-  Stream<List<Map<String, dynamic>>> getAllUsers() {
+  // Initialize service
+  Future<void> _initializeService() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
-
-      return _firestore
-          .collection('users')
-          .snapshots()
-          .map((snapshot) {
-        return snapshot.docs.map((doc) {
-          final data = doc.data();
-          return {
-            'id': doc.id,
-            'firstName': data['firstName'] ?? '',
-            'lastName': data['lastName'] ?? '',
-            'email': data['email'] ?? '',
-            'image': data['image'] ?? '',
-            'role': data['role'] ?? 'user',
-          };
-        }).toList();
-      });
+      _cachedUserId = await LocalStorageService.getUserId();
+      print('ChatService initialized with user ID: $_cachedUserId');
     } catch (e) {
-      print('Error getting users: $e');
-      rethrow;
+      print('Error initializing ChatService: $e');
     }
   }
 
-  // Get user details by ID
-  Future<Map<String, dynamic>?> getUserById(String userId) async {
+  // Enhanced user management with caching
+  Future<ChatResult<Map<String, dynamic>>> getUserById(String userId) async {
     try {
-      final doc = await _firestore.collection('users').doc(userId).get();
-      if (!doc.exists) return null;
+      // Check cache first
+      if (_userCache.containsKey(userId)) {
+        return ChatResult.success(_userCache[userId]!);
+      }
+
+      final doc = await _firestore
+          .collection(ChatConfig.usersCollection)
+          .doc(userId)
+          .get();
+
+      if (!doc.exists) {
+        return ChatResult.failure('User not found');
+      }
 
       final data = doc.data()!;
-      return {
+      final userData = {
         'id': doc.id,
         'firstName': data['firstName'] ?? '',
         'lastName': data['lastName'] ?? '',
+        'fullName': '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim(),
         'email': data['email'] ?? '',
         'image': data['image'] ?? '',
         'role': data['role'] ?? 'user',
+        'isOnline': data['isOnline'] ?? false,
+        'lastSeen': data['lastSeen'],
       };
+
+      // Cache the user data
+      _userCache[userId] = userData;
+      
+      return ChatResult.success(userData);
     } catch (e) {
-      print('Error getting user: $e');
-      rethrow;
+      return ChatResult.failure('Error fetching user: $e');
     }
   }
 
-  // Generate a unique chat channel ID for two users
+  // Improved user listing with pagination
+  Stream<ChatResult<List<Map<String, dynamic>>>> getAllUsers({
+    int limit = 20,
+    String? lastUserId,
+  }) {
+    try {
+      if (!isAuthenticated) {
+        return Stream.value(ChatResult.failure('User not authenticated'));
+      }
+
+      Query query = _firestore
+          .collection(ChatConfig.usersCollection)
+          .where('id', isNotEqualTo: currentUserId)
+          .orderBy('id')
+          .limit(limit);
+
+      if (lastUserId != null) {
+        query = query.startAfter([lastUserId]);
+      }
+
+      return query.snapshots().map((snapshot) {
+        try {
+          final users = snapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final userData = {
+              'id': doc.id,
+              'firstName': data['firstName'] ?? '',
+              'lastName': data['lastName'] ?? '',
+              'fullName': '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim(),
+              'email': data['email'] ?? '',
+              'image': data['image'] ?? '',
+              'role': data['role'] ?? 'user',
+              'isOnline': data['isOnline'] ?? false,
+              'lastSeen': data['lastSeen'],
+            };
+            
+            // Cache user data
+            _userCache[doc.id] = userData;
+            return userData;
+          }).toList();
+
+          return ChatResult.success(users);
+        } catch (e) {
+          return ChatResult.failure('Error processing users: $e');
+        }
+      });
+    } catch (e) {
+      return Stream.value(ChatResult.failure('Error getting users: $e'));
+    }
+  }
+
+  // Enhanced chat channel management
   String getChatChannelId(String userId1, String userId2) {
-    // Sort the IDs to ensure consistent channel ID regardless of who initiates
+    if (userId1.isEmpty || userId2.isEmpty) {
+      throw ArgumentError('User IDs cannot be empty');
+    }
+    
     final sortedIds = [userId1, userId2]..sort();
     return '${sortedIds[0]}_${sortedIds[1]}';
   }
 
-  // Ensure chat channel exists
-  Future<void> ensureChatChannel(String otherUserId) async {
+  Future<ChatResult<void>> ensureChatChannel(String otherUserId) async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
+      if (!isAuthenticated) {
+        return ChatResult.failure('User not authenticated');
+      }
 
-      final channelId = getChatChannelId(currentUser.uid, otherUserId);
+      if (otherUserId.isEmpty) {
+        return ChatResult.failure('Invalid user ID');
+      }
+
+      final channelId = getChatChannelId(currentUserId!, otherUserId);
       
       // Check if chat channel exists
-      final chatDoc = await _firestore.collection('chats').doc(channelId).get();
+      final chatDoc = await _firestore
+          .collection(ChatConfig.chatsCollection)
+          .doc(channelId)
+          .get();
       
-      if (!chatDoc.exists) {
-        // Get user details for both users
-        final currentUserData = await getUserById(currentUser.uid);
-        final otherUserData = await getUserById(otherUserId);
-
-        if (currentUserData == null || otherUserData == null) {
-          throw Exception('User data not found');
-        }
-
-        // Create new chat channel
-        await _firestore.collection('chats').doc(channelId).set({
-          'participants': [currentUser.uid, otherUserId],
-          'participantNames': {
-            currentUser.uid: '${currentUserData['firstName']} ${currentUserData['lastName']}',
-            otherUserId: '${otherUserData['firstName']} ${otherUserData['lastName']}',
-          },
-          'participantImages': {
-            currentUser.uid: currentUserData['image'],
-            otherUserId: otherUserData['image'],
-          },
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-          'lastMessage': '',
-          'lastMessageTime': FieldValue.serverTimestamp(),
-          'lastMessageSender': currentUser.uid,
-          'lastMessageReceiver': otherUserId,
-        });
+      if (chatDoc.exists) {
+        return ChatResult.success(null);
       }
+
+      // Get user details for both users
+      final currentUserResult = await getUserById(currentUserId!);
+      final otherUserResult = await getUserById(otherUserId);
+
+      if (!currentUserResult.isSuccess || !otherUserResult.isSuccess) {
+        return ChatResult.failure('Failed to get user data');
+      }
+
+      final currentUserData = currentUserResult.data!;
+      final otherUserData = otherUserResult.data!;
+
+      // Create new chat channel with enhanced metadata
+      await _firestore
+          .collection(ChatConfig.chatsCollection)
+          .doc(channelId)
+          .set({
+        'participants': [currentUserId, otherUserId],
+        'participantData': {
+          currentUserId!: {
+            'name': currentUserData['fullName'],
+            'image': currentUserData['image'],
+            'role': currentUserData['role'],
+          },
+          otherUserId: {
+            'name': otherUserData['fullName'], 
+            'image': otherUserData['image'],
+            'role': otherUserData['role'],
+          },
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'lastMessage': '',
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'lastMessageSender': currentUserId,
+        'messageCount': 0,
+        'unreadCount': {
+          currentUserId!: 0,
+          otherUserId: 0,
+        },
+        'isActive': true,
+      });
+
+      return ChatResult.success(null);
     } catch (e) {
-      print('Error ensuring chat channel: $e');
-      rethrow;
+      return ChatResult.failure('Error creating chat channel: $e');
     }
   }
 
-  // Send a message
-  Future<void> sendMessage({
+  // Enhanced message sending with better error handling
+  Future<ChatResult<String>> sendMessage({
     required String receiverId,
     required String content,
+    String type = 'text',
+    Map<String, dynamic>? metadata,
   }) async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
+      if (!isAuthenticated) {
+        return ChatResult.failure('User not authenticated');
+      }
+
+      if (content.trim().isEmpty) {
+        return ChatResult.failure('Message content cannot be empty');
+      }
 
       // Ensure chat channel exists
-      await ensureChatChannel(receiverId);
+      final channelResult = await ensureChatChannel(receiverId);
+      if (!channelResult.isSuccess) {
+        return ChatResult.failure(channelResult.error!);
+      }
 
-      final channelId = getChatChannelId(currentUser.uid, receiverId);
-      final messageId = _firestore.collection('chats').doc(channelId).collection('messages').doc().id;
+      final channelId = getChatChannelId(currentUserId!, receiverId);
+      print('Sending message in channel: $channelId');
+      print('From: $currentUserId');
+      print('To: $receiverId');
+      print('Content: $content');
 
+      final messageRef = _firestore
+          .collection(ChatConfig.chatsCollection)
+          .doc(channelId)
+          .collection(ChatConfig.messagesSubCollection)
+          .doc();
+
+      final now = DateTime.now();
       final message = Message(
-        id: messageId,
-        senderId: currentUser.uid,
+        id: messageRef.id,
+        senderId: currentUserId!,
         receiverId: receiverId,
-        content: content,
-        timestamp: DateTime.now(),
+        content: content.trim(),
+        timestamp: now,
         isRead: false,
       );
 
-      // Add message to messages collection
-      await _firestore
-          .collection('chats')
-          .doc(channelId)
-          .collection('messages')
-          .doc(messageId)
-          .set(message.toMap());
+      // Use transaction for consistency
+      await _firestore.runTransaction((transaction) async {
+        // Add message
+        transaction.set(messageRef, message.toMap());
 
-      // Update last message in chat document
-      await _firestore.collection('chats').doc(channelId).set({
-        'lastMessage': content,
-        'lastMessageTime': FieldValue.serverTimestamp(),
-        'participants': [currentUser.uid, receiverId],
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastMessageSender': currentUser.uid,
-        'lastMessageReceiver': receiverId,
-      }, SetOptions(merge: true));
+        // Update chat channel
+        final chatRef = _firestore
+            .collection(ChatConfig.chatsCollection)
+            .doc(channelId);
+        
+        transaction.update(chatRef, {
+          'lastMessage': content.trim(),
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'lastMessageSender': currentUserId,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'messageCount': FieldValue.increment(1),
+          'unreadCount.$receiverId': FieldValue.increment(1),
+        });
+      });
 
-      // Send push notification
-      await _sendPushNotification(receiverId, content);
+      print('Message sent successfully');
+      return ChatResult.success(messageRef.id);
     } catch (e) {
       print('Error sending message: $e');
-      rethrow;
+      return ChatResult.failure('Error sending message: $e');
     }
   }
 
-  // Get messages for a chat channel
-  Stream<List<Message>> getMessages(String otherUserId) {
+  // Enhanced message retrieval with pagination and filtering
+  Stream<List<Message>> getMessages(
+    String otherUserId, {
+    int limit = ChatConfig.messageLimit,
+    DocumentSnapshot? lastMessageDocument,
+  }) {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
+      if (!isAuthenticated || currentUserId == null) {
+        return Stream.value([]); // Return empty list if not authenticated
+      }
 
-      final channelId = getChatChannelId(currentUser.uid, otherUserId);
+      final channelId = getChatChannelId(currentUserId!, otherUserId);
+      print('Getting messages for channel: $channelId');
+      print('Current user: $currentUserId');
+      print('Other user: $otherUserId');
 
-      return _firestore
-          .collection('chats')
+      // Create query with proper filtering
+      Query query = _firestore
+          .collection(ChatConfig.chatsCollection)
           .doc(channelId)
-          .collection('messages')
+          .collection(ChatConfig.messagesSubCollection)
           .orderBy('timestamp', descending: true)
-          .snapshots()
-          .map((snapshot) {
-        return snapshot.docs.map((doc) {
-          final data = doc.data();
-          return Message(
-            id: doc.id,
-            senderId: data['senderId'] ?? '',
-            receiverId: data['receiverId'] ?? '',
-            content: data['content'] ?? '',
-            timestamp: (data['timestamp'] as Timestamp).toDate(),
-            isRead: data['isRead'] ?? false,
-          );
-        }).toList();
+          .limit(limit);
+
+      if (lastMessageDocument != null) {
+        query = query.startAfterDocument(lastMessageDocument);
+      }
+
+      return query.snapshots().map((snapshot) {
+        try {
+          final messages = snapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            print('Raw message data: $data');
+            
+            // Ensure sender and receiver IDs are properly set
+            final senderId = data['senderId']?.toString() ?? '';
+            final receiverId = data['receiverId']?.toString() ?? '';
+            
+            print('Message from $senderId to $receiverId');
+            print('Content: ${data['content']}');
+            
+            // Create message with proper sender/receiver
+            return Message.fromMap({
+              ...data,
+              'id': doc.id,
+              'senderId': senderId,
+              'receiverId': receiverId,
+            });
+          }).toList();
+
+          // Sort messages by timestamp in ascending order for display
+          messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          
+          print('Processed ${messages.length} messages');
+          return messages;
+        } catch (e) {
+          print('Error processing messages: $e');
+          return []; // Return empty list on error
+        }
       });
     } catch (e) {
       print('Error getting messages: $e');
-      rethrow;
+      return Stream.value([]); // Return empty list on error
     }
   }
 
-  // Get all chat channels for current user
-  Stream<List<Map<String, dynamic>>> getChatChannels() {
+  // Enhanced chat channels with better data structure
+  Stream<ChatResult<List<ChatChannel>>> getChatChannels() {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
+      if (!isAuthenticated) {
+        return Stream.value(ChatResult.failure('User not authenticated'));
+      }
 
       return _firestore
-          .collection('chats')
-          .where('participants', arrayContains: currentUser.uid)
+          .collection(ChatConfig.chatsCollection)
+          .where('participants', arrayContains: currentUserId)
+          .where('isActive', isEqualTo: true)
           .orderBy('lastMessageTime', descending: true)
           .snapshots()
           .map((snapshot) {
-        return snapshot.docs.map((doc) {
-          final data = doc.data();
-          final participants = List<String>.from(data['participants'] ?? []);
-          final otherUserId = participants.firstWhere((id) => id != currentUser.uid);
-          
-          return {
-            'channelId': doc.id,
-            'otherUserId': otherUserId,
-            'lastMessage': data['lastMessage'] ?? '',
-            'lastMessageTime': data['lastMessageTime'],
-            'lastMessageSender': data['lastMessageSender'],
-            'lastMessageReceiver': data['lastMessageReceiver'],
-          };
-        }).toList();
+        try {
+          final channels = snapshot.docs.map((doc) {
+            final data = doc.data();
+            final participants = List<String>.from(data['participants'] ?? []);
+            final otherUserId = participants.firstWhere(
+              (id) => id != currentUserId,
+              orElse: () => '',
+            );
+
+            return ChatChannel(
+              id: doc.id,
+              otherUserId: otherUserId,
+              otherUserData: data['participantData']?[otherUserId] ?? {},
+              lastMessage: data['lastMessage'] ?? '',
+              lastMessageTime: data['lastMessageTime'] as Timestamp?,
+              lastMessageSender: data['lastMessageSender'] ?? '',
+              unreadCount: data['unreadCount']?[currentUserId] ?? 0,
+              messageCount: data['messageCount'] ?? 0,
+              isActive: data['isActive'] ?? true,
+            );
+          }).toList();
+
+          return ChatResult.success(channels);
+        } catch (e) {
+          return ChatResult.failure('Error processing chat channels: $e');
+        }
       });
     } catch (e) {
-      print('Error getting chat channels: $e');
-      rethrow;
+      return Stream.value(ChatResult.failure('Error getting chat channels: $e'));
     }
   }
 
-  // Mark messages as read
+  // Helper method to mark messages as read
   Future<void> markMessagesAsRead(String otherUserId) async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
+      if (!isAuthenticated || currentUserId == null) return;
 
-      final channelId = getChatChannelId(currentUser.uid, otherUserId);
+      final channelId = getChatChannelId(currentUserId!, otherUserId);
       
-      // Get all unread messages
+      // Get unread messages
       final unreadMessages = await _firestore
-          .collection('chats')
+          .collection(ChatConfig.chatsCollection)
           .doc(channelId)
-          .collection('messages')
-          .where('receiverId', isEqualTo: currentUser.uid)
+          .collection(ChatConfig.messagesSubCollection)
+          .where('senderId', isEqualTo: otherUserId)
+          .where('receiverId', isEqualTo: currentUserId)
           .where('isRead', isEqualTo: false)
           .get();
 
-      // Mark each message as read
+      // Mark messages as read in a batch
       final batch = _firestore.batch();
       for (var doc in unreadMessages.docs) {
-        batch.update(doc.reference, {'isRead': true});
+        batch.update(doc.reference, {
+          'isRead': true,
+          'readAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
       }
       await batch.commit();
+
+      // Update unread count in chat channel
+      await _firestore
+          .collection(ChatConfig.chatsCollection)
+          .doc(channelId)
+          .update({
+        'unreadCount.$currentUserId': 0,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       print('Error marking messages as read: $e');
-      rethrow;
     }
   }
 
-  // Get typing status
+  // Enhanced typing indicators with auto-cleanup
+  Future<ChatResult<void>> setTypingStatus(String otherUserId, bool isTyping) async {
+    try {
+      if (!isAuthenticated) {
+        return ChatResult.failure('User not authenticated');
+      }
+
+      final channelId = getChatChannelId(currentUserId!, otherUserId);
+
+      await _firestore
+          .collection(ChatConfig.chatsCollection)
+          .doc(channelId)
+          .update({
+        'typing.${currentUserId!}': isTyping ? FieldValue.serverTimestamp() : FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Auto-cleanup typing status after timeout
+      if (isTyping) {
+        _typingTimer?.cancel();
+        _typingTimer = Timer(ChatConfig.typingTimeout, () {
+          setTypingStatus(otherUserId, false);
+        });
+      }
+
+      return ChatResult.success(null);
+    } catch (e) {
+      return ChatResult.failure('Error setting typing status: $e');
+    }
+  }
+
   Stream<bool> getTypingStatus(String otherUserId) {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
+      if (!isAuthenticated) {
+        return Stream.value(false);
+      }
 
-      final channelId = getChatChannelId(currentUser.uid, otherUserId);
+      final channelId = getChatChannelId(currentUserId!, otherUserId);
 
       return _firestore
-          .collection('chats')
+          .collection(ChatConfig.chatsCollection)
           .doc(channelId)
           .snapshots()
-          .map((doc) => doc.data()?['typing'] == otherUserId);
+          .map((doc) {
+        final typingData = doc.data()?['typing'] as Map<String, dynamic>?;
+        if (typingData == null || !typingData.containsKey(otherUserId)) {
+          return false;
+        }
+
+        final typingTimestamp = typingData[otherUserId] as Timestamp?;
+        if (typingTimestamp == null) return false;
+
+        // Check if typing status is still valid (within timeout)
+        final now = DateTime.now();
+        final typingTime = typingTimestamp.toDate();
+        return now.difference(typingTime) < ChatConfig.typingTimeout;
+      });
     } catch (e) {
       print('Error getting typing status: $e');
-      rethrow;
+      return Stream.value(false);
     }
   }
 
-  // Set typing status
-  Future<void> setTypingStatus(String otherUserId, bool isTyping) async {
-    try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
-
-      final channelId = getChatChannelId(currentUser.uid, otherUserId);
-
-      await _firestore.collection('chats').doc(channelId).set({
-        'typing': isTyping ? currentUser.uid : null,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (e) {
-      print('Error setting typing status: $e');
-      rethrow;
-    }
-  }
-
-  // Send push notification
+  // Enhanced push notification
   Future<void> _sendPushNotification(String receiverId, String message) async {
     try {
-      // Get receiver's FCM token
-      final receiverDoc = await _firestore.collection('users').doc(receiverId).get();
-      final fcmToken = receiverDoc.data()?['fcmToken'];
+      final receiverResult = await getUserById(receiverId);
+      if (!receiverResult.isSuccess) return;
+
+      final receiverData = receiverResult.data!;
+      final fcmToken = receiverData['fcmToken'];
 
       if (fcmToken != null) {
-        final currentUser = _auth.currentUser;
-        if (currentUser == null) return;
-
-        // Get sender's name
-        final senderDoc = await _firestore.collection('users').doc(currentUser.uid).get();
-        final senderName = senderDoc.data()?['name'] ?? 'Someone';
+        final currentUserResult = await getUserById(currentUserId!);
+        final senderName = currentUserResult.data?['fullName'] ?? 'Someone';
 
         await _notificationService.sendNotification(
           token: fcmToken,
           title: 'New message from $senderName',
-          body: message,
+          body: message.length > 100 ? '${message.substring(0, 100)}...' : message,
           data: {
             'type': 'message',
-            'senderId': currentUser.uid,
-            'channelId': getChatChannelId(currentUser.uid, receiverId),
+            'senderId': currentUserId!,
+            'channelId': getChatChannelId(currentUserId!, receiverId),
           },
         );
       }
@@ -341,52 +546,105 @@ class ChatService {
     }
   }
 
-  // Delete chat room and all its messages
-  Future<void> deleteChatRoom(String otherUserId) async {
+  // Enhanced cleanup
+  Future<ChatResult<void>> deleteChatRoom(String otherUserId) async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
-
-      final channelId = getChatChannelId(currentUser.uid, otherUserId);
-      
-      // Get all messages in the chat room
-      final messagesSnapshot = await _firestore
-          .collection('chats')
-          .doc(channelId)
-          .collection('messages')
-          .get();
-
-      // Delete all messages in a batch
-      final batch = _firestore.batch();
-      for (var doc in messagesSnapshot.docs) {
-        batch.delete(doc.reference);
+      if (!isAuthenticated) {
+        return ChatResult.failure('User not authenticated');
       }
 
-      // Delete the chat room document
-      batch.delete(_firestore.collection('chats').doc(channelId));
+      final channelId = getChatChannelId(currentUserId!, otherUserId);
+      
+      await _firestore.runTransaction((transaction) async {
+        // Get all messages
+        final messagesSnapshot = await _firestore
+            .collection(ChatConfig.chatsCollection)
+            .doc(channelId)
+            .collection(ChatConfig.messagesSubCollection)
+            .get();
 
-      // Commit the batch
-      await batch.commit();
+        // Delete all messages
+        for (var doc in messagesSnapshot.docs) {
+          transaction.delete(doc.reference);
+        }
+
+        // Mark chat room as inactive instead of deleting
+        final chatRef = _firestore
+            .collection(ChatConfig.chatsCollection)
+            .doc(channelId);
+        
+        transaction.update(chatRef, {
+          'isActive': false,
+          'deletedAt': FieldValue.serverTimestamp(),
+          'deletedBy': currentUserId,
+        });
+      });
+
+      return ChatResult.success(null);
     } catch (e) {
-      print('Error deleting chat room: $e');
-      rethrow;
+      return ChatResult.failure('Error deleting chat room: $e');
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchAllUsersFromApi() async {
-    final response = await http.get(
-      Uri.parse('https://careconnect-api-v2kw.onrender.com/api/user/all'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    );
+  // API integration with better error handling
+  Future<ChatResult<List<Map<String, dynamic>>>> fetchAllUsersFromApi() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://careconnect-api-v2kw.onrender.com/api/user/all'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 200) {
-      final List<dynamic> users = json.decode(response.body);
-      return users.map((user) => user as Map<String, dynamic>).toList();
-    } else {
-      throw Exception('Failed to load users');
+      if (response.statusCode == 200) {
+        final List<dynamic> users = json.decode(response.body);
+        final userList = users.map((user) => user as Map<String, dynamic>).toList();
+        
+        // Cache the users
+        for (var user in userList) {
+          if (user['id'] != null) {
+            _userCache[user['id']] = user;
+          }
+        }
+        
+        return ChatResult.success(userList);
+      } else {
+        return ChatResult.failure('Failed to load users: ${response.statusCode}');
+      }
+    } catch (e) {
+      return ChatResult.failure('Error fetching users from API: $e');
     }
   }
-} 
+
+  // Cleanup method
+  void dispose() {
+    _typingTimer?.cancel();
+    _userCache.clear();
+  }
+}
+
+// Data model for chat channels
+class ChatChannel {
+  final String id;
+  final String otherUserId;
+  final Map<String, dynamic> otherUserData;
+  final String lastMessage;
+  final Timestamp? lastMessageTime;
+  final String lastMessageSender;
+  final int unreadCount;
+  final int messageCount;
+  final bool isActive;
+
+  ChatChannel({
+    required this.id,
+    required this.otherUserId,
+    required this.otherUserData,
+    required this.lastMessage,
+    required this.lastMessageTime,
+    required this.lastMessageSender,
+    required this.unreadCount,
+    required this.messageCount,
+    required this.isActive,
+  });
+}
