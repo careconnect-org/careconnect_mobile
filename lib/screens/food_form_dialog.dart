@@ -58,63 +58,109 @@ class _FoodFormDialogState extends State<FoodFormDialog> {
     final isEditing = widget.food != null;
 
     return AlertDialog(
-      title: Text(isEditing ? 'Edit Food' : 'Add New Food'),
+      title: Text(
+        isEditing ? 'Edit Food' : 'Add New Food',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                prefixIcon: Icon(Icons.restaurant),
+              ),
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: descriptionController,
-              decoration: const InputDecoration(labelText: 'Description'),
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                prefixIcon: Icon(Icons.description),
+              ),
               maxLines: 3,
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: categoryController,
-              decoration: const InputDecoration(labelText: 'Category'),
+              decoration: const InputDecoration(
+                labelText: 'Category',
+                prefixIcon: Icon(Icons.category),
+              ),
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: caloriesController,
-              decoration: const InputDecoration(labelText: 'Calories'),
+              decoration: const InputDecoration(
+                labelText: 'Calories',
+                prefixIcon: Icon(Icons.local_fire_department),
+              ),
               keyboardType: TextInputType.number,
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: ingredientsController,
               decoration: const InputDecoration(
                 labelText: 'Ingredients (comma-separated)',
+                prefixIcon: Icon(Icons.list),
               ),
               maxLines: 2,
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: recipeUrlController,
-              decoration: const InputDecoration(labelText: 'Recipe URL'),
+              decoration: const InputDecoration(
+                labelText: 'Recipe URL',
+                prefixIcon: Icon(Icons.link),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
+            Text(
+              'Add Image',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                ElevatedButton.icon(
-                  onPressed: () => _pickImage(ImageSource.gallery),
-                  icon: const Icon(Icons.photo_library),
-                  label: const Text('Gallery'),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickImage(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('Gallery'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _pickImage(ImageSource.camera),
-                  icon: const Icon(Icons.camera_alt),
-                  label: const Text('Camera'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickImage(ImageSource.camera),
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Camera'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
               ],
             ),
             if (imagePath != null || widget.food?.imageUrl.isNotEmpty == true)
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
-                child: Image.file(
-                  File(imagePath ?? widget.food!.imageUrl),
-                  height: 100,
-                  fit: BoxFit.cover,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    File(imagePath ?? widget.food!.imageUrl),
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
           ],

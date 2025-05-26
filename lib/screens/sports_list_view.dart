@@ -26,13 +26,17 @@ class SportsListView extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(16.0),
           child: TextField(
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Search Sports',
               hintText: 'Search by title, category, or description',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+              fillColor: Colors.white,
             ),
             onChanged: onSearch,
           ),
@@ -42,13 +46,42 @@ class SportsListView extends StatelessWidget {
               ? const Center(child: CircularProgressIndicator())
               : sports.isEmpty
                   ? Center(
-                      child: Text(
-                        searchQuery.isEmpty
-                            ? 'No sports available. Tap + to add new sports.'
-                            : 'No sports found matching "$searchQuery"',
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.sports,
+                            size: 64,
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            searchQuery.isEmpty
+                                ? 'No sports available'
+                                : 'No sports found matching "$searchQuery"',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          if (searchQuery.isEmpty)
+                            ElevatedButton.icon(
+                              onPressed: () => onEdit(SportRecommendation(
+                                id: '',
+                                title: '',
+                                description: '',
+                                category: '',
+                                duration: 0,
+                                difficulty: '',
+                                youtubeLink: '',
+                                imageUrl: '',
+                              )),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add New Sport'),
+                            ),
+                        ],
                       ),
                     )
                   : ListView.builder(
+                      padding: const EdgeInsets.all(8),
                       itemCount: sports.length,
                       itemBuilder: (context, index) {
                         final sport = sports[index];
@@ -58,20 +91,59 @@ class SportsListView extends StatelessWidget {
                             vertical: 4.0,
                           ),
                           child: ListTile(
+                            contentPadding: const EdgeInsets.all(12),
                             leading: CircleAvatar(
-                              backgroundImage: NetworkImage(sport.imageUrl),
+                              radius: 24,
+                              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                              backgroundImage: sport.imageUrl.isNotEmpty
+                                  ? NetworkImage(sport.imageUrl)
+                                  : null,
                               child: sport.imageUrl.isEmpty
-                                  ? const Icon(Icons.sports)
+                                  ? Icon(
+                                      Icons.sports,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    )
                                   : null,
                             ),
-                            title: Text(sport.title),
+                            title: Text(
+                              sport.title,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(sport.category),
+                                const SizedBox(height: 4),
                                 Text(
-                                  '${sport.duration} min • ${sport.difficulty}',
-                                  style: Theme.of(context).textTheme.bodySmall,
+                                  sport.category,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.timer,
+                                      size: 16,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${sport.duration} min',
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Icon(
+                                      Icons.fitness_center,
+                                      size: 16,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      sport.difficulty,
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -82,16 +154,19 @@ class SportsListView extends StatelessWidget {
                                   icon: const Icon(Icons.visibility),
                                   onPressed: () => onViewDetails(sport),
                                   tooltip: 'View Details',
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.edit),
                                   onPressed: () => onEdit(sport),
                                   tooltip: 'Edit Sport',
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.delete),
                                   onPressed: () => onDelete(sport.id),
                                   tooltip: 'Delete Sport',
+                                  color: Theme.of(context).colorScheme.error,
                                 ),
                               ],
                             ),

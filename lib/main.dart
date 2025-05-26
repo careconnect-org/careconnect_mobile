@@ -12,6 +12,7 @@ import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'services/auth_service.dart';
+import 'theme/app_theme.dart';
 
 // Use the global navigator key from the NotificationService
 final GlobalKey<NavigatorState> navigatorKey = NotificationService.navigatorKey;
@@ -73,7 +74,7 @@ Future<void> _checkUserRoleAndSubscribe() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -81,10 +82,7 @@ class MyApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       title: 'Care Connect',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
+      theme: AppTheme.lightTheme,
       home: WelcomeScreen(),
       routes: {
         '/appointments': (context) => const AppointmentsNavigator(),

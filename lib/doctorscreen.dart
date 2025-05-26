@@ -1,55 +1,52 @@
 import 'package:flutter/material.dart';
-import 'package:careconnect/chatdetailscreen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:async';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'screens/chat_screen.dart';
-import 'services/auth_service.dart';
+import 'package:careconnect/services/local_storage_service.dart';
 
-class DoctorsPage extends StatefulWidget {
-  final String? selectedSpecialty;
-
-  const DoctorsPage({
-    Key? key,
-    this.selectedSpecialty,
-  }) : super(key: key);
+class DoctorScreen extends StatefulWidget {
+  const DoctorScreen({Key? key}) : super(key: key);
 
   @override
-  _DoctorsPageState createState() => _DoctorsPageState();
+  _DoctorScreenState createState() => _DoctorScreenState();
 }
 
-class _DoctorsPageState extends State<DoctorsPage> {
-  List<Map<String, dynamic>> doctors = [];
-  bool isLoading = true;
-  String error = '';
-  final AuthService _authService = AuthService();
+class _DoctorScreenState extends State<DoctorScreen> {
+  List<Map<String, dynamic>> _doctors = [];
+  bool _isLoading = true;
+  String _error = '';
+  String _searchQuery = '';
+
+  Future<String?> _getAuthToken() async {
+    try {
+      final token = await LocalStorageService.getAuthToken();
+      print('Retrieved token: ${token != null ? 'Token exists' : 'No token found'}');
+      return token;
+    } catch (e) {
+      print('Error getting token: $e');
+      return null;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _checkAuthAndFetchDoctors();
+    _fetchDoctors();
   }
 
-  Future<void> _checkAuthAndFetchDoctors() async {
-    final isLoggedIn = await _authService.isLoggedIn();
-    if (!isLoggedIn) {
-      setState(() {
-        error = 'Please login to view doctors';
-        isLoading = false;
-      });
-      return;
-    }
-    await fetchDoctors();
-  }
-
-  Future<void> fetchDoctors() async {
+  Future<void> _fetchDoctors() async {
     try {
-      final token = await _authService.getToken();
+      setState(() {
+        _isLoading = true;
+        _error = '';
+      });
+
+      final token = await _getAuthToken();
+      print('Token for request: ${token != null ? 'Token exists' : 'No token'}');
+
       if (token == null) {
         setState(() {
-          error = 'Please login to view doctors';
-          isLoading = false;
+          _error = 'Please login to view available doctors';
+          _isLoading = false;
         });
         return;
       }
@@ -63,97 +60,76 @@ class _DoctorsPageState extends State<DoctorsPage> {
         },
       ).timeout(const Duration(seconds: 10));
 
+      print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         try {
           final Map<String, dynamic> responseData = json.decode(response.body);
           final List<dynamic> doctorsData = responseData['doctors'] ?? [];
-          
-          if (doctorsData.isEmpty) {
-            setState(() {
-              error = 'No doctors found';
-              isLoading = false;
-            });
-            return;
-          }
+          print("_doctors%%%%%%%%%%%%%%%:$_doctors");
+          print("doctorsData%%%%%%%%%%%%%%%: $doctorsData");
 
           setState(() {
-            doctors = doctorsData.map((doctor) {
-              final user = doctor['user'];
-              final firstName = user != null ? user['firstName'] ?? '' : '';
-              final lastName = user != null ? user['lastName'] ?? '' : '';
-              final availableSlots = doctor['availableSlots'] as List?;
-              final firstSlot = availableSlots != null && availableSlots.isNotEmpty ? availableSlots[0] : null;
-              final from = firstSlot?['from'] ?? '9:00 AM';
-              final to = firstSlot?['to'] ?? '5:00 PM';
+            _doctors = doctorsData.map((doctor) {
+              // Safely access nested user data with null checks
+              final userData = doctor['user'] as Map<String, dynamic>?;
+              final firstName = userData?['firstName']?.toString() ?? '';
+              final lastName = userData?['lastName']?.toString() ?? '';
+
               return {
-                'id': doctor['_id'] ?? '',
-                'name': '$firstName $lastName',
-                'specialty': doctor['specialization'] ?? 'General Practitioner',
-                'rating': 4.0,
-                'available': true,
-                'workingHours': '$from - $to',
-                'image': user != null ? user['image'] ?? 'https://i.pravatar.cc/150?img=1' : 'https://i.pravatar.cc/150?img=1',
-                'hospital': doctor['hospital'] ?? 'Not specified',
-                'experience': doctor['yearsOfExperience'] ?? 0,
-                'licenseNumber': doctor['licenseNumber'] ?? '',
+                'id': doctor['_id']?.toString() ?? '',
+                'userId': userData?['_id']?.toString() ?? '',
+                'name': '$firstName $lastName'.trim(),
+                'specialty': doctor['specialization']?.toString() ?? 'General',
+                'image': userData?['image']?.toString() ?? '',
+                'email': userData?['email']?.toString() ?? '',
+                'phone': userData?['phone']?.toString() ?? '',
+                'experience': doctor['yearsOfExperience']?.toString() ?? '0',
+                'qualification': doctor['qualification']?.toString() ?? '',
+                'availability': doctor['availability'] ?? true,
+                'hospital': doctor['hospital']?.toString() ?? 'Not specified',
+                'licenseNumber': doctor['licenseNumber']?.toString() ?? '',
               };
             }).toList();
-            isLoading = false;
+            _isLoading = false;
           });
         } catch (e) {
-          print('Error parsing response: $e');
           setState(() {
-            error = 'Error parsing doctor data: $e';
-            isLoading = false;
+            _error = 'Error parsing doctor data: $e';
+            _isLoading = false;
           });
         }
       } else if (response.statusCode == 401) {
-        // Token might be expired, try to refresh
-        final newToken = await _authService.refreshToken();
-        if (newToken != null) {
-          // Retry the request with new token
-          await fetchDoctors();
-        } else {
-          setState(() {
-            error = 'Session expired. Please login again.';
-            isLoading = false;
-          });
-        }
+        setState(() {
+          _error = 'Session expired. Please login again.';
+          _isLoading = false;
+        });
       } else {
         setState(() {
-          error = 'Failed to load doctors. Status code: ${response.statusCode}';
-          isLoading = false;
+          _error = 'Failed to load doctors. Status code: ${response.statusCode}';
+          _isLoading = false;
         });
       }
     } catch (e) {
-      print('Error fetching doctors: $e');
       setState(() {
-        error = 'Network error: $e';
-        isLoading = false;
+        _error = 'Network error: $e';
+        _isLoading = false;
       });
     }
   }
 
-  void _startChat(BuildContext context, Map<String, dynamic> doctor) {
-    if (doctor['id'] == null || doctor['id'].toString().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to start chat: Doctor ID not available'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChatScreen(
-          receiverId: doctor['id'],
-          receiverName: doctor['name'],
-        ),
-      ),
-    );
+  List<Map<String, dynamic>> get _filteredDoctors {
+    if (_searchQuery.isEmpty) return _doctors;
+    return _doctors.where((doctor) {
+      final name = doctor['name'].toString().toLowerCase();
+      final specialty = doctor['specialty'].toString().toLowerCase();
+      final qualification = doctor['qualification'].toString().toLowerCase();
+      final query = _searchQuery.toLowerCase();
+      return name.contains(query) ||
+          specialty.contains(query) ||
+          qualification.contains(query);
+    }).toList();
   }
 
   @override
@@ -175,64 +151,83 @@ class _DoctorsPageState extends State<DoctorsPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              setState(() {
-                isLoading = true;
-                error = '';
-              });
-              fetchDoctors();
-            },
+            onPressed: _fetchDoctors,
           ),
         ],
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : error.isNotEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        error,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                      const SizedBox(height: 20),
-                      if (error.contains('login'))
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(context, '/login');
-                          },
-                          child: const Text('Go to Login'),
-                        )
-                      else
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              isLoading = true;
-                              error = '';
-                            });
-                            fetchDoctors();
-                          },
-                          child: const Text('Retry'),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search by name, specialty, or qualification...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error.isNotEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _error,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                            const SizedBox(height: 20),
+                            if (_error.contains('login'))
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pushReplacementNamed(context, '/login');
+                                },
+                                child: const Text('Go to Login'),
+                              )
+                            else
+                              ElevatedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _isLoading = true;
+                                    _error = '';
+                                  });
+                                  _fetchDoctors();
+                                },
+                                child: const Text('Retry'),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
-                )
-              : doctors.isEmpty
-                  ? const Center(child: Text('No doctors available'))
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: doctors.length,
-                      itemBuilder: (context, index) {
-                        final doctor = doctors[index];
-                        return _buildDoctorCard(context, doctor);
-                      },
-                    ),
+                      )
+                    : _filteredDoctors.isEmpty
+                        ? const Center(child: Text('No doctors available'))
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _filteredDoctors.length,
+                            itemBuilder: (context, index) {
+                              final doctor = _filteredDoctors[index];
+                              return _buildDoctorCard(doctor);
+                            },
+                          ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildDoctorCard(BuildContext context, Map<String, dynamic> doctor) {
+  Widget _buildDoctorCard(Map<String, dynamic> doctor) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 4,
@@ -260,7 +255,12 @@ class _DoctorsPageState extends State<DoctorsPage> {
                     ),
                     child: CircleAvatar(
                       radius: 35,
-                      backgroundImage: NetworkImage(doctor['image']),
+                      backgroundImage: doctor['image'] != null && doctor['image'].isNotEmpty
+                          ? NetworkImage(doctor['image'])
+                          : null,
+                      child: doctor['image'] == null || doctor['image'].isEmpty
+                          ? const Icon(Icons.person, size: 35)
+                          : null,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -269,7 +269,7 @@ class _DoctorsPageState extends State<DoctorsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          doctor['name'],
+                          'Dr. ${doctor['name']}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 20,
@@ -296,7 +296,7 @@ class _DoctorsPageState extends State<DoctorsPage> {
                         const SizedBox(height: 4),
                         _buildInfoRow(Icons.work, '${doctor['experience']} years experience'),
                         const SizedBox(height: 4),
-                        _buildInfoRow(Icons.access_time, doctor['workingHours']),
+                        // _buildInfoRow(Icons.school, doctor['qualification']),
                         const SizedBox(height: 8),
                         Row(
                           children: [
@@ -312,7 +312,7 @@ class _DoctorsPageState extends State<DoctorsPage> {
                                   const Icon(Icons.star, color: Colors.orange, size: 16),
                                   const SizedBox(width: 4),
                                   Text(
-                                    "${doctor['rating']}",
+                                    "4.0",
                                     style: const TextStyle(
                                       color: Colors.orange,
                                       fontWeight: FontWeight.bold,
@@ -325,7 +325,7 @@ class _DoctorsPageState extends State<DoctorsPage> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: doctor['available'] ? Colors.green.shade100 : Colors.red.shade100,
+                                color: doctor['availability'] ? Colors.green.shade100 : Colors.red.shade100,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
@@ -333,14 +333,14 @@ class _DoctorsPageState extends State<DoctorsPage> {
                                 children: [
                                   Icon(
                                     Icons.circle,
-                                    color: doctor['available'] ? Colors.green : Colors.red,
+                                    color: doctor['availability'] ? Colors.green : Colors.red,
                                     size: 10,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    doctor['available'] ? "Online" : "Offline",
+                                    doctor['availability'] ? "Available" : "Unavailable",
                                     style: TextStyle(
-                                      color: doctor['available'] ? Colors.green : Colors.red,
+                                      color: doctor['availability'] ? Colors.green : Colors.red,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -353,28 +353,6 @@ class _DoctorsPageState extends State<DoctorsPage> {
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(height: 1),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _startChat(context, doctor),
-                  icon: const Icon(Icons.message),
-                  label: const Text(
-                    "Message",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
               ),
             ],
           ),
@@ -400,4 +378,4 @@ class _DoctorsPageState extends State<DoctorsPage> {
       ],
     );
   }
-}
+} 

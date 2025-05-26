@@ -156,25 +156,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          // IconButton(
-          //   icon: const Icon(Icons.message_outlined),
-          //   onPressed: () {
-          //     Navigator.of(context).push(
-          //       MaterialPageRoute(
-          //         builder: (context) => ChatListScreen(),
-          //       ),
-          //     );
-          //   },
-          // ),
-          IconButton(
-            icon: const Icon(Icons.favorite_border),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (context) => const MyFavoriteDoctorScreen()),
-              );
-            },
-          ),
+         
+        
         ],
       ),
       body: SingleChildScrollView(
@@ -230,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => DoctorsPage(),
+                          builder: (context) => DoctorScreen(),
                         ),
                       );
                     }
@@ -324,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => DoctorsPage(),
+                          builder: (context) => DoctorScreen(),
                         ),
                       );
                     },

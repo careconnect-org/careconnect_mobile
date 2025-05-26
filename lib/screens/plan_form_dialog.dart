@@ -52,76 +52,182 @@ class _PlanFormDialogState extends State<PlanFormDialog> {
     final isEditing = widget.plan != null;
 
     return AlertDialog(
-      title: Text(isEditing ? 'Edit Plan' : 'Create New Plan'),
+      title: Text(
+        isEditing ? 'Edit Plan' : 'Create New Plan',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(labelText: 'Plan Title'),
-            ),
-            TextField(
-              controller: descriptionController,
-              decoration: const InputDecoration(labelText: 'Description'),
-              maxLines: 3,
-            ),
-            TextField(
-              controller: targetDurationController,
-              decoration: const InputDecoration(
-                labelText: 'Target Duration (minutes per week)',
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Plan Title',
+                        prefixIcon: Icon(Icons.title),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        prefixIcon: Icon(Icons.description),
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: targetDurationController,
+                      decoration: const InputDecoration(
+                        labelText: 'Target Duration (minutes per week)',
+                        prefixIcon: Icon(Icons.timer),
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                ),
               ),
-              keyboardType: TextInputType.number,
             ),
-            const SizedBox(height: 16),
-            ListTile(
-              title: const Text('Start Date'),
-              subtitle: Text(startDate?.toString().split(' ')[0] ?? 'Not set'),
-              trailing: const Icon(Icons.calendar_today),
-              onTap: () async {
-                final date = await showDatePicker(
-                  context: context,
-                  initialDate: startDate ?? DateTime.now(),
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 365)),
-                );
-                if (date != null) {
-                  setState(() => startDate = date);
-                }
-              },
+            const SizedBox(height: 24),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Plan Duration',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 16),
+                    ListTile(
+                      leading: const Icon(Icons.calendar_today),
+                      title: const Text('Start Date'),
+                      subtitle: Text(
+                        startDate?.toString().split(' ')[0] ?? 'Not set',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                        ),
+                      ),
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: startDate ?? DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (date != null) {
+                          setState(() => startDate = date);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      leading: const Icon(Icons.calendar_today),
+                      title: const Text('End Date'),
+                      subtitle: Text(
+                        endDate?.toString().split(' ')[0] ?? 'Not set',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                        ),
+                      ),
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: endDate ?? DateTime.now().add(const Duration(days: 30)),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (date != null) {
+                          setState(() => endDate = date);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
-            ListTile(
-              title: const Text('End Date'),
-              subtitle: Text(endDate?.toString().split(' ')[0] ?? 'Not set'),
-              trailing: const Icon(Icons.calendar_today),
-              onTap: () async {
-                final date = await showDatePicker(
-                  context: context,
-                  initialDate: endDate ?? DateTime.now().add(const Duration(days: 30)),
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 365)),
-                );
-                if (date != null) {
-                  setState(() => endDate = date);
-                }
-              },
+            const SizedBox(height: 24),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Select Sports for this Plan',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 16),
+                    ...widget.availableSports.map((sport) => Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: CheckboxListTile(
+                            title: Text(
+                              sport.title,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            subtitle: Row(
+                              children: [
+                                Icon(
+                                  Icons.timer,
+                                  size: 16,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${sport.duration} min',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(width: 16),
+                                Icon(
+                                  Icons.fitness_center,
+                                  size: 16,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  sport.difficulty,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                            value: selectedSportIds.contains(sport.id),
+                            onChanged: (value) {
+                              setState(() {
+                                if (value == true) {
+                                  selectedSportIds.add(sport.id);
+                                } else {
+                                  selectedSportIds.remove(sport.id);
+                                }
+                              });
+                            },
+                          ),
+                        )),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
-            const Text('Select Sports for this Plan:'),
-            ...widget.availableSports.map((sport) => CheckboxListTile(
-              title: Text(sport.title),
-              subtitle: Text('${sport.duration} min • ${sport.difficulty}'),
-              value: selectedSportIds.contains(sport.id),
-              onChanged: (value) {
-                setState(() {
-                  if (value == true) {
-                    selectedSportIds.add(sport.id);
-                  } else {
-                    selectedSportIds.remove(sport.id);
-                  }
-                });
-              },
-            )),
           ],
         ),
       ),
@@ -130,7 +236,7 @@ class _PlanFormDialogState extends State<PlanFormDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: () {
             if (startDate == null || endDate == null) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -149,7 +255,12 @@ class _PlanFormDialogState extends State<PlanFormDialog> {
             );
             Navigator.pop(context, newPlan);
           },
-          child: Text(isEditing ? 'Update' : 'Create'),
+          icon: Icon(isEditing ? Icons.save : Icons.add),
+          label: Text(isEditing ? 'Update' : 'Create'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+          ),
         ),
       ],
     );

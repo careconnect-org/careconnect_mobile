@@ -289,8 +289,14 @@ class _SportsCrudScreenState extends State<SportsCrudScreen> with SingleTickerPr
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'Sports'),
-            Tab(text: 'My Plans'),
+            Tab(
+              icon: Icon(Icons.sports),
+              text: 'Sports',
+            ),
+            Tab(
+              icon: Icon(Icons.fitness_center),
+              text: 'My Plans',
+            ),
           ],
         ),
         actions: [
@@ -301,29 +307,41 @@ class _SportsCrudScreenState extends State<SportsCrudScreen> with SingleTickerPr
           ),
         ],
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          SportsListView(
-            sports: _filteredSports,
-            isLoading: _isLoading,
-            searchQuery: _searchQuery,
-            onSearch: _filterSports,
-            onViewDetails: _showSportDetails,
-            onEdit: _showSportForm,
-            onDelete: _deleteSport,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              Theme.of(context).colorScheme.background,
+            ],
           ),
-          PlansListView(
-            plans: _plans,
-            sports: _sports,
-            isLoading: _isLoading,
-            onCreatePlan: () => _showPlanForm(),
-            onEditPlan: _showPlanForm,
-            onToggleComplete: _togglePlanComplete,
-          ),
-        ],
+        ),
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            SportsListView(
+              sports: _filteredSports,
+              isLoading: _isLoading,
+              searchQuery: _searchQuery,
+              onSearch: _filterSports,
+              onViewDetails: _showSportDetails,
+              onEdit: _showSportForm,
+              onDelete: _deleteSport,
+            ),
+            PlansListView(
+              plans: _plans,
+              sports: _sports,
+              isLoading: _isLoading,
+              onCreatePlan: () => _showPlanForm(),
+              onEditPlan: _showPlanForm,
+              onToggleComplete: _togglePlanComplete,
+            ),
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           if (_tabController.index == 0) {
             _showSportForm();
@@ -331,8 +349,8 @@ class _SportsCrudScreenState extends State<SportsCrudScreen> with SingleTickerPr
             _showPlanForm();
           }
         },
-        tooltip: _tabController.index == 0 ? 'Add New Sport' : 'Create New Plan',
-        child: Icon(_tabController.index == 0 ? Icons.add : Icons.add_task),
+        icon: Icon(_tabController.index == 0 ? Icons.add : Icons.add_task),
+        label: Text(_tabController.index == 0 ? 'Add Sport' : 'Create Plan'),
       ),
     );
   }

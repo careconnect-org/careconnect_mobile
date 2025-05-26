@@ -5,8 +5,6 @@ import 'notification_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'local_storage_service.dart';
-import 'package:uuid/uuid.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 
 // Result wrapper for better error handling

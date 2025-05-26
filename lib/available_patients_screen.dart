@@ -255,20 +255,7 @@ class _AvailablePatientsScreenState extends State<AvailablePatientsScreen> {
                                               ),
                                               const SizedBox(height: 4),
                                               Row(
-                                                children: [
-                                                  const Icon(
-                                                    Icons.person,
-                                                    color: Colors.blue,
-                                                    size: 16,
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  // Text(
-                                                  //   '${patient['age']} years old',
-                                                  //   style: const TextStyle(
-                                                  //     color: Colors.grey,
-                                                  //   ),
-                                                  // ),
-                                                  const SizedBox(width: 16),
+                                                children: [                                                 
                                                   const Icon(
                                                     Icons.bloodtype,
                                                     color: Colors.red,
